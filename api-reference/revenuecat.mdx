@@ -1,0 +1,598 @@
+---
+title: 'Subscription Management'
+description: 'Admin tools for managing subscriptions and entitlements'
+---
+The RevenueCat endpoint provides administrative tools for managing user subscriptions and entitlements in the Narra healthcare platform. These endpoints allow administrators to refresh subscription data, grant promotional access, and manage billing-related operations through RevenueCat's subscription platform.
+
+<Info>
+**For newcomers**: Think of this as our "subscription admin panel." It lets administrators manually refresh a user's subscription status from RevenueCat, grant promotional access (like free trials), and troubleshoot subscription issues. These are admin-only operations for customer support and billing management.
+
+**For senior devs**: RevenueCat REST API v1 integration with intelligent Firestore caching, admin-only endpoints with promotional entitlement granting, automatic sync after operations, and comprehensive error handling for subscription state management.
+</Info>
+
+## Overview
+
+### Key Features
+- **Subscription refresh** - Force sync user subscription data from RevenueCat
+- **Promotional entitlements** - Grant free access for trials, support cases, etc.
+- **Admin-only operations** - All endpoints require administrative privileges
+- **Intelligent caching** - Local Firestore cache with staleness detection
+- **Error resilience** - Comprehensive handling of RevenueCat API issues
+
+### Use Cases
+- **Customer support** - Troubleshoot subscription issues
+- **Promotional campaigns** - Grant free access periods
+- **Billing troubleshooting** - Manually refresh subscription status
+- **Account management** - Administrative subscription operations
+
+### Why We Built It This Way
+- **Admin-only** - Subscription management is sensitive and requires administrative oversight
+- **RevenueCat integration** - Leverages industry-standard subscription platform
+- **Cached for performance** - Reduces API calls while maintaining data freshness
+- **Comprehensive logging** - Full audit trail for subscription operations
+
+## Authentication
+
+```bash
+X-API-Key: your-admin-api-key
+```
+
+All RevenueCat endpoints require administrative API key authentication.
+
+<Warning>
+**Admin Access Required**: These endpoints are restricted to administrative users only. They should not be exposed to regular users as they can grant access and modify subscription states.
+</Warning>
+
+## Endpoints
+
+### Refresh User Subscription
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/revenuecat/admin/users/user_123/subscriptions/refresh \
+  -H "X-API-Key: your-admin-api-key"
+```
+
+```python Python
+import requests
+
+# Manually refresh subscription data
+response = requests.post(
+    "https://api.narra.com/api/v1/revenuecat/admin/users/user_123/subscriptions/refresh",
+    headers={"X-API-Key": "admin-api-key"}
+)
+
+subscription_data = response.json()
+```
+
+```javascript JavaScript
+// Admin dashboard refresh subscription
+const refreshSubscription = async (userId) => {
+  const response = await fetch(`/revenuecat/admin/users/${userId}/subscriptions/refresh`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': adminApiKey,
+    }
+  });
+  
+  return response.json();
+};
+```
+
+</CodeGroup>
+
+**POST** `/revenuecat/admin/users/{user_id}/subscriptions/refresh`
+
+Forces a fresh sync of user subscription data from RevenueCat, bypassing local cache.
+
+#### Path Parameters
+
+<ParamField path="user_id" type="string" required>
+  The user ID to refresh subscription data for
+</ParamField>
+
+#### Response
+
+```json
+{
+  "user_id": "user_123",
+  "workspace_id": "ws_456",
+  "revenuecat_customer_id": "rc_customer_789",
+  "active_entitlements": {
+    "pro_access": {
+      "identifier": "pro_access",
+      "is_active": true,
+      "will_renew": true,
+      "period_type": "normal",
+      "latest_purchase_date": "2024-01-15T10:30:00Z",
+      "original_purchase_date": "2024-01-01T10:30:00Z",
+      "expiration_date": "2024-02-15T10:30:00Z",
+      "store": "app_store",
+      "is_sandbox": false,
+      "unsubscribe_detected_at": null,
+      "billing_issue_detected_at": null
+    }
+  },
+  "management_url": "https://apps.apple.com/account/subscriptions",
+  "first_seen_by_revenuecat_at": "2024-01-01T10:30:00Z",
+  "last_seen_by_revenuecat_at": "2024-01-15T12:00:00Z",
+  "active_entitlement_ids": ["pro_access"],
+  "last_synced_with_revenuecat_api_at": "2024-01-15T12:05:00Z"
+}
+```
+
+<ResponseField name="active_entitlements" type="object">
+  Dictionary of active entitlements with detailed subscription information
+</ResponseField>
+
+<ResponseField name="management_url" type="string">
+  URL where user can manage their subscription (App Store, Google Play, etc.)
+</ResponseField>
+
+<ResponseField name="active_entitlement_ids" type="array">
+  Simplified list of active entitlement identifiers for quick frontend checks
+</ResponseField>
+
+<ResponseField name="last_synced_with_revenuecat_api_at" type="string">
+  Timestamp of last successful sync with RevenueCat API
+</ResponseField>
+
+### Grant Promotional Entitlement
+
+<CodeGroup>
+
+```bash cURL
+# Grant 1 month promotional access
+curl -X POST https://api.narra.com/api/v1/revenuecat/admin/users/user_123/entitlements/pro_access/grant \
+  -H "X-API-Key: your-admin-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "duration": "1 month"
+  }'
+```
+
+```bash cURL - Specific End Date
+# Grant access until specific date
+curl -X POST https://api.narra.com/api/v1/revenuecat/admin/users/user_123/entitlements/pro_access/grant \
+  -H "X-API-Key: your-admin-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "end_time_ms": 1708041600000
+  }'
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+
+# Grant 3 month promotional access
+response = requests.post(
+    "https://api.narra.com/api/v1/revenuecat/admin/users/user_123/entitlements/pro_access/grant",
+    headers={
+        "X-API-Key": "admin-api-key",
+        "Content-Type": "application/json"
+    },
+    json={
+        "duration": "3 months"
+    }
+)
+
+# Grant access until specific timestamp
+end_date = datetime.now() + timedelta(days=30)
+end_time_ms = int(end_date.timestamp() * 1000)
+
+response = requests.post(
+    "https://api.narra.com/api/v1/revenuecat/admin/users/user_123/entitlements/pro_access/grant",
+    headers={
+        "X-API-Key": "admin-api-key", 
+        "Content-Type": "application/json"
+    },
+    json={
+        "end_time_ms": end_time_ms
+    }
+)
+```
+
+```javascript JavaScript
+// Admin dashboard promotional access
+const grantPromotionalAccess = async (userId, entitlementId, duration) => {
+  const response = await fetch(
+    `/revenuecat/admin/users/${userId}/entitlements/${entitlementId}/grant`, 
+    {
+      method: 'POST',
+      headers: {
+        'X-API-Key': adminApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        duration: duration  // e.g., "1 month", "6 months", "1 year"
+      })
+    }
+  );
+  
+  return response.json();
+};
+
+// Usage examples
+await grantPromotionalAccess('user_123', 'pro_access', '1 month');
+await grantPromotionalAccess('user_456', 'premium_features', '6 months');
+```
+
+</CodeGroup>
+
+**POST** `/revenuecat/admin/users/{user_id}/entitlements/{entitlement_identifier}/grant`
+
+Grants promotional entitlement access to a user for a specified duration.
+
+#### Path Parameters
+
+<ParamField path="user_id" type="string" required>
+  The user ID to grant entitlement access to
+</ParamField>
+
+<ParamField path="entitlement_identifier" type="string" required>
+  The RevenueCat entitlement identifier (e.g., "pro_access", "premium_features")
+</ParamField>
+
+#### Request Body
+
+<Note>
+You must provide either `duration` OR `end_time_ms`, but not both.
+</Note>
+
+<ParamField body="duration" type="string">
+  Human-readable duration string. Supported formats:
+  - `"1 week"`, `"2 weeks"`, `"3 weeks"`
+  - `"1 month"`, `"2 months"`, `"6 months"`
+  - `"1 year"`, `"2 years"`
+  
+  Maps to RevenueCat standard durations: `weekly`, `monthly`, `two_month`, `three_month`, `six_month`, `annual`, `two_year`
+</ParamField>
+
+<ParamField body="end_time_ms" type="number">
+  Specific end timestamp in milliseconds (Unix timestamp * 1000)
+</ParamField>
+
+#### Response
+
+```json
+{
+  "success": true,
+  "message": "Promotional entitlement granted successfully and subscription data synced",
+  "granted_entitlement": {
+    "user_id": "user_123",
+    "entitlement_identifier": "pro_access", 
+    "duration": "1 month",
+    "granted_at": "2024-01-15T12:00:00Z"
+  },
+  "updated_subscription": {
+    "user_id": "user_123",
+    "active_entitlements": {
+      "pro_access": {
+        "identifier": "pro_access",
+        "is_active": true,
+        "period_type": "promotional",
+        "expiration_date": "2024-02-15T12:00:00Z"
+      }
+    }
+  }
+}
+```
+
+<ResponseField name="granted_entitlement" type="object">
+  Details of the promotional entitlement that was granted
+</ResponseField>
+
+<ResponseField name="updated_subscription" type="object">
+  Updated subscription data after granting the entitlement
+</ResponseField>
+
+## Duration Mapping
+
+### Supported Duration Strings
+
+<AccordionGroup>
+  <Accordion title="Weekly Access">
+    - `"1 week"` → `weekly`
+    - `"2 weeks"` → `two_week`
+    - `"3 weeks"` → `three_week`
+  </Accordion>
+  
+  <Accordion title="Monthly Access">
+    - `"1 month"` → `monthly`
+    - `"2 months"` → `two_month`
+    - `"3 months"` → `three_month`
+    - `"6 months"` → `six_month`
+  </Accordion>
+  
+  <Accordion title="Annual Access">
+    - `"1 year"` → `annual`
+    - `"2 years"` → `two_year`
+  </Accordion>
+</AccordionGroup>
+
+### Custom End Dates
+
+For precise control, use `end_time_ms` with Unix timestamp in milliseconds:
+
+```python
+from datetime import datetime, timedelta
+
+# Grant access for exactly 45 days
+end_date = datetime.now() + timedelta(days=45)
+end_time_ms = int(end_date.timestamp() * 1000)
+```
+
+## Error Handling
+
+<ResponseField name="400 Bad Request">
+  Invalid duration string or conflicting parameters
+  ```json
+  {
+    "detail": "Invalid duration '1 day'. Supported: 1 week, 1 month, 6 months, 1 year, etc."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="400 Bad Request">
+  Both duration and end_time_ms provided
+  ```json
+  {
+    "detail": "Provide either 'duration' or 'end_time_ms', not both"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  User not found in RevenueCat
+  ```json
+  {
+    "detail": "User 'user_123' not found in RevenueCat"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  RevenueCat API errors or sync failures
+  ```json
+  {
+    "detail": "Successfully granted entitlement but failed to sync data from RevenueCat. The entitlement is active but local cache may be outdated."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="503 Service Unavailable">
+  RevenueCat service temporarily unavailable
+</ResponseField>
+
+## Subscription Data Schema
+
+### Active Entitlement Structure
+
+```json
+{
+  "identifier": "pro_access",
+  "is_active": true,
+  "will_renew": true,
+  "period_type": "normal" | "trial" | "promotional" | "grace",
+  "latest_purchase_date": "2024-01-15T10:30:00Z",
+  "original_purchase_date": "2024-01-01T10:30:00Z", 
+  "expiration_date": "2024-02-15T10:30:00Z",
+  "store": "app_store" | "play_store" | "stripe" | "promotional",
+  "is_sandbox": false,
+  "unsubscribe_detected_at": null,
+  "billing_issue_detected_at": null
+}
+```
+
+### Period Types
+- **`normal`** - Regular paid subscription
+- **`trial`** - Free trial period
+- **`promotional`** - Promotional access (granted via API)
+- **`grace`** - Grace period after billing issue
+
+### Store Types
+- **`app_store`** - Apple App Store
+- **`play_store`** - Google Play Store
+- **`stripe`** - Stripe payments
+- **`promotional`** - Admin-granted access
+
+## Caching Strategy
+
+### Intelligent Cache Management
+- **Cache duration**: 15 minutes default staleness threshold
+- **Automatic refresh**: Stale data triggers automatic RevenueCat sync
+- **Manual refresh**: Admin can force refresh via refresh endpoint
+- **Cache invalidation**: Automatic after promotional grants
+
+### Cache Miss Scenarios
+1. **First access** - No cached data exists
+2. **Stale data** - Cache older than 15 minutes
+3. **Manual refresh** - Admin-triggered refresh
+4. **Post-grant sync** - Automatic refresh after promotional grant
+
+## Common Administrative Tasks
+
+### Customer Support Scenarios
+
+```python
+# Customer reports subscription not working
+async def troubleshoot_subscription(user_id: str):
+    # Step 1: Force refresh from RevenueCat
+    response = await refresh_user_subscription(user_id)
+    
+    # Step 2: Check if entitlements are active
+    if not response['active_entitlement_ids']:
+        print("No active entitlements found")
+        return False
+    
+    # Step 3: Check expiration dates
+    for entitlement in response['active_entitlements'].values():
+        expiration = entitlement.get('expiration_date')
+        if expiration:
+            print(f"Entitlement expires: {expiration}")
+    
+    return True
+
+# Grant promotional access for support case
+async def grant_support_access(user_id: str, duration: str = "1 month"):
+    response = await grant_promotional_entitlement(
+        user_id=user_id,
+        entitlement_id="pro_access", 
+        duration=duration
+    )
+    
+    print(f"Granted {duration} access to user {user_id}")
+    return response
+```
+
+### Promotional Campaign Management
+
+```python
+# Grant access to list of beta users
+async def grant_beta_access(user_ids: list, duration: str = "6 months"):
+    results = []
+    
+    for user_id in user_ids:
+        try:
+            result = await grant_promotional_entitlement(
+                user_id=user_id,
+                entitlement_id="beta_features",
+                duration=duration
+            )
+            results.append({"user_id": user_id, "success": True})
+        except Exception as e:
+            results.append({"user_id": user_id, "success": False, "error": str(e)})
+    
+    return results
+
+# Usage
+beta_users = ["user_1", "user_2", "user_3"]
+results = await grant_beta_access(beta_users, "3 months")
+```
+
+## Integration Examples
+
+### Admin Dashboard Integration
+
+```typescript
+// React admin dashboard for subscription management
+interface SubscriptionManager {
+  async refreshSubscription(userId: string) {
+    const response = await fetch(`/revenuecat/admin/users/${userId}/subscriptions/refresh`, {
+      method: 'POST',
+      headers: { 'X-API-Key': adminApiKey }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to refresh subscription: ${response.statusText}`);
+    }
+    
+    return response.json();
+  }
+  
+  async grantPromotionalAccess(userId: string, entitlementId: string, duration: string) {
+    const response = await fetch(
+      `/revenuecat/admin/users/${userId}/entitlements/${entitlementId}/grant`,
+      {
+        method: 'POST',
+        headers: {
+          'X-API-Key': adminApiKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ duration })
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Failed to grant access: ${response.statusText}`);
+    }
+    
+    return response.json();
+  }
+}
+
+// Usage in admin interface
+const handleRefreshSubscription = async (userId: string) => {
+  setLoading(true);
+  try {
+    const data = await subscriptionManager.refreshSubscription(userId);
+    setSubscriptionData(data);
+    showSuccess('Subscription refreshed successfully');
+  } catch (error) {
+    showError(`Failed to refresh: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
+```
+
+### Customer Support Tools
+
+```python
+# Customer support CLI tool
+class SupportTool:
+    def __init__(self, admin_api_key: str):
+        self.api_key = admin_api_key
+        self.base_url = "https://api.narra.com/api/v1/revenuecat/admin"
+    
+    async def diagnose_user(self, user_id: str):
+        """Comprehensive user subscription diagnosis"""
+        try:
+            # Refresh data
+            sub_data = await self.refresh_subscription(user_id)
+            
+            print(f"User: {user_id}")
+            print(f"Customer ID: {sub_data['revenuecat_customer_id']}")
+            print(f"Active Entitlements: {sub_data['active_entitlement_ids']}")
+            print(f"Last Sync: {sub_data['last_synced_with_revenuecat_api_at']}")
+            
+            # Check each entitlement
+            for ent_id, ent_data in sub_data['active_entitlements'].items():
+                print(f"\nEntitlement: {ent_id}")
+                print(f"  Active: {ent_data['is_active']}")
+                print(f"  Type: {ent_data['period_type']}")
+                print(f"  Store: {ent_data['store']}")
+                print(f"  Expires: {ent_data.get('expiration_date', 'Never')}")
+                
+                if ent_data.get('billing_issue_detected_at'):
+                    print(f"  ⚠️  Billing Issue: {ent_data['billing_issue_detected_at']}")
+                    
+        except Exception as e:
+            print(f"Error diagnosing user: {e}")
+    
+    async def grant_trial(self, user_id: str, duration: str = "1 month"):
+        """Grant trial access for support cases"""
+        try:
+            result = await self.grant_promotional_entitlement(
+                user_id, "pro_access", duration
+            )
+            print(f"✅ Granted {duration} trial access to {user_id}")
+            return result
+        except Exception as e:
+            print(f"❌ Failed to grant trial: {e}")
+            raise
+```
+
+## Performance Tips
+
+1. **Cache awareness** - Check `last_synced_with_revenuecat_api_at` before refreshing
+2. **Batch operations** - Use promotional grants efficiently for multiple users
+3. **Error handling** - Always handle RevenueCat API timeouts gracefully
+4. **Monitoring** - Track grant operations for audit and billing purposes
+
+## Debugging
+
+<Tip>
+Check these for subscription issues:
+- **RevenueCat dashboard**: Verify entitlements are properly configured
+- **Subscription refresh**: Use manual refresh to bypass cache
+- **Error logs**: Check for RevenueCat API errors and network issues
+- **Firestore data**: Verify local cache matches RevenueCat state
+</Tip>
+
+## Related Endpoints
+
+- [FCM Push Notifications](/api-reference/fcm) - Send subscription-related notifications
+- User management endpoints - Link subscription data with user accounts

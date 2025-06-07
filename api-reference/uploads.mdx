@@ -1,0 +1,454 @@
+---
+title: 'File Upload & Storage'
+description: 'Upload and manage media files for clinical logs'
+---
+The Media Upload endpoint handles file uploads for clinical logs, storing media in Google Cloud Storage and generating video previews automatically. When providers attach images, videos, or documents to their logs, this endpoint processes and stores them with proper metadata tracking.
+
+<Info>
+**For newcomers**: Think of this as our "attachment system." When a doctor takes a photo of a patient's wound or records a video for documentation, this endpoint stores it safely and links it to the patient's log for future reference.
+
+**For senior devs**: Multipart form-data uploads to GCS via Firebase Admin SDK, automatic video preview generation with OpenCV, Firestore metadata storage, and public URL generation with no access control layer.
+</Info>
+
+## Overview
+
+### Key Features
+- **Multi-file uploads** - Upload one or more files in a single request
+- **Google Cloud Storage** - Secure, scalable file storage
+- **Video preview generation** - Automatic first-frame extraction for videos
+- **Log integration** - Optional linking to specific patient logs
+- **Metadata tracking** - Full audit trail with user and timestamp info
+
+### Storage Structure
+Files are organized in GCS with this path structure:
+```
+{workspaceId}/{patientId}/{mediaId}/{filename}
+{workspaceId}/{patientId}/{mediaId}/video_preview.jpg  // For videos
+```
+
+### Why We Built It This Way
+- **UUID-based media IDs** - Prevents filename conflicts and provides unique references
+- **Public URLs** - Simplifies mobile app integration without additional auth
+- **Video previews** - Better UX for video content in mobile timeline
+- **Firestore metadata** - Fast queries and relationship tracking
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+Upload endpoints require API key authentication.
+
+## Endpoints
+
+### Upload Media Files
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/uploads/media \
+  -H "X-API-Key: your-api-key" \
+  -F "workspaceId=ws_123" \
+  -F "patientId=pt_456" \
+  -F "user_id=user_789" \
+  -F "logId=log_abc" \
+  -F "files=@wound_photo.jpg" \
+  -F "files=@examination_video.mp4"
+```
+
+```python Python
+import requests
+
+# Upload multiple files
+files = [
+    ('files', ('wound_photo.jpg', open('wound_photo.jpg', 'rb'), 'image/jpeg')),
+    ('files', ('examination_video.mp4', open('examination_video.mp4', 'rb'), 'video/mp4'))
+]
+
+data = {
+    'workspaceId': 'ws_123',
+    'patientId': 'pt_456', 
+    'user_id': 'user_789',
+    'logId': 'log_abc'  # Optional
+}
+
+response = requests.post(
+    "https://api.narra.com/api/v1/uploads/media",
+    headers={"X-API-Key": "your-api-key"},
+    files=files,
+    data=data
+)
+
+result = response.json()
+```
+
+```javascript JavaScript
+// Upload from browser/React Native
+const uploadMedia = async (files, metadata) => {
+  const formData = new FormData();
+  
+  // Add metadata
+  formData.append('workspaceId', metadata.workspaceId);
+  formData.append('patientId', metadata.patientId);
+  formData.append('user_id', metadata.userId);
+  if (metadata.logId) {
+    formData.append('logId', metadata.logId);
+  }
+  
+  // Add files
+  files.forEach(file => {
+    formData.append('files', file);
+  });
+  
+  const response = await fetch('/api/v1/uploads/media', {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+    },
+    body: formData
+  });
+  
+  return response.json();
+};
+```
+
+</CodeGroup>
+
+**POST** `/uploads/media`
+
+Uploads one or more media files and stores them in Google Cloud Storage.
+
+#### Request Body (multipart/form-data)
+
+<ParamField body="workspaceId" type="string" required>
+  The workspace ID for organizational data isolation
+</ParamField>
+
+<ParamField body="patientId" type="string" required>
+  The patient ID to associate the media with
+</ParamField>
+
+<ParamField body="user_id" type="string" required>
+  The user ID of the person uploading the media (for audit trail)
+</ParamField>
+
+<ParamField body="files" type="file[]" required>
+  One or more files to upload. Any file type is supported (images, videos, documents, etc.)
+</ParamField>
+
+<ParamField body="logId" type="string">
+  Optional log ID to associate the media with a specific clinical log
+</ParamField>
+
+#### Response
+
+```json
+{
+  "message": "Media uploaded successfully.",
+  "mediaId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "storagePath": "gs://narra-media/ws_123/pt_456/a1b2c3d4.../wound_photo.jpg",
+  "url": "https://storage.googleapis.com/narra-media/ws_123/pt_456/a1b2c3d4.../wound_photo.jpg",
+  "videoPreviewUrl": "https://storage.googleapis.com/narra-media/ws_123/pt_456/a1b2c3d4.../video_preview.jpg"
+}
+```
+
+<ResponseField name="message" type="string">
+  Success confirmation message
+</ResponseField>
+
+<ResponseField name="mediaId" type="string">
+  Unique identifier for the uploaded media (UUID)
+</ResponseField>
+
+<ResponseField name="storagePath" type="string">
+  Full Google Cloud Storage path (gs:// format)
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Public HTTPS URL for accessing the uploaded file
+</ResponseField>
+
+<ResponseField name="videoPreviewUrl" type="string">
+  Public HTTPS URL for video preview image (only present for video files)
+</ResponseField>
+
+### Delete Media
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://api.narra.com/api/v1/media/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python
+import requests
+
+# Delete media file
+response = requests.delete(
+    "https://api.narra.com/api/v1/media/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    headers={"X-API-Key": "your-api-key"}
+)
+```
+
+</CodeGroup>
+
+**DELETE** `/media/{media_id}`
+
+Deletes a media file from both Google Cloud Storage and Firestore metadata.
+
+#### Path Parameters
+
+<ParamField path="media_id" type="string" required>
+  The unique media ID returned from the upload endpoint
+</ParamField>
+
+#### Response
+
+```json
+{
+  "message": "Media deleted successfully"
+}
+```
+
+## File Processing
+
+### Video Preview Generation
+
+For video files (any MIME type starting with `video/`), the system automatically:
+
+1. **Extracts first frame** using OpenCV
+2. **Saves as JPEG** with filename `video_preview.jpg`
+3. **Uploads preview** to same GCS location
+4. **Returns preview URL** in response
+
+<Note>
+Video preview generation happens synchronously. Large video files may take longer to process.
+</Note>
+
+### Supported File Types
+
+- **Images**: JPEG, PNG, GIF, WEBP, etc.
+- **Videos**: MP4, MOV, AVI, MKV, etc.
+- **Documents**: PDF, DOC, DOCX, TXT, etc.
+- **Audio**: MP3, WAV, M4A, etc.
+- **Any other file type** - No restrictions on MIME types
+
+### File Size Limits
+
+Currently no explicit file size limits are enforced at the application level. Limits may be imposed by:
+- Google Cloud Storage quotas
+- API gateway timeout settings
+- Network transfer limits
+
+## Storage Details
+
+### Google Cloud Storage Structure
+
+```
+Bucket: {GCS_MEDIA_BUCKET}
+├── workspaceId1/
+│   ├── patientId1/
+│   │   ├── mediaId1/
+│   │   │   ├── original_filename.jpg
+│   │   │   └── video_preview.jpg (if video)
+│   │   └── mediaId2/
+│   │       └── document.pdf
+│   └── patientId2/
+└── workspaceId2/
+```
+
+### Firestore Metadata Schema
+
+Media metadata is stored in the `patient_media` collection:
+
+```json
+{
+  "patient_id": "pt_456",
+  "workspace_id": "ws_123", 
+  "storagePath": "gs://bucket/path/to/file",
+  "url": "https://storage.googleapis.com/bucket/path/to/file",
+  "videoPreviewUrl": "https://storage.googleapis.com/bucket/path/to/preview",
+  "type": "image/jpeg",
+  "filename": "wound_photo.jpg",
+  "size": 1024576,
+  "uploaded_at": "2024-01-15T10:30:00Z",
+  "uploaded_by": "user_789",
+  "log_id": "log_abc"
+}
+```
+
+### Log Integration
+
+When `logId` is provided, the system also updates the log document's `attachments` array:
+
+```json
+{
+  "attachments": [
+    {
+      "mediaId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "type": "image/jpeg",
+      "filename": "wound_photo.jpg", 
+      "url": "https://storage.googleapis.com/...",
+      "videoPreviewUrl": "https://storage.googleapis.com/..." // For videos
+    }
+  ]
+}
+```
+
+## Error Handling
+
+<ResponseField name="400 Bad Request">
+  No files provided or files missing filenames
+  ```json
+  {
+    "detail": "No files were uploaded or files are missing filenames."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="422 Unprocessable Entity">
+  Missing required form fields
+  ```json
+  {
+    "detail": [
+      {
+        "loc": ["body", "workspaceId"],
+        "msg": "field required",
+        "type": "value_error.missing"
+      }
+    ]
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  Google Cloud Storage or Firestore errors
+</ResponseField>
+
+<ResponseField name="503 Service Unavailable">
+  Temporary service issues with cloud providers
+</ResponseField>
+
+## Performance Tips
+
+1. **Batch uploads** - Upload multiple related files in single request
+2. **Compress media** - Pre-compress large images/videos before upload
+3. **Use appropriate formats** - JPEG for photos, MP4 for videos
+4. **Monitor file sizes** - Large files increase upload time and storage costs
+
+## Security Considerations
+
+<Warning>
+**Public URLs**: All uploaded files become publicly accessible via their URLs. Don't upload sensitive patient information that requires access control.
+</Warning>
+
+- Files are stored with publicly accessible URLs
+- No additional authentication required to access files after upload
+- Consider implementing client-side access control if needed
+- Use UUID-based paths to prevent URL guessing
+
+## Integration Examples
+
+### Mobile App Photo Upload
+
+```typescript
+// React Native camera integration
+import { launchImageLibrary } from 'react-native-image-picker';
+
+const uploadPhoto = async () => {
+  launchImageLibrary({ mediaType: 'photo' }, async (response) => {
+    if (response.assets?.[0]) {
+      const asset = response.assets[0];
+      
+      const formData = new FormData();
+      formData.append('workspaceId', currentWorkspace.id);
+      formData.append('patientId', currentPatient.id);
+      formData.append('user_id', currentUser.id);
+      formData.append('logId', currentLog.id);
+      formData.append('files', {
+        uri: asset.uri,
+        type: asset.type,
+        name: asset.fileName,
+      } as any);
+      
+      const result = await uploadMedia(formData);
+      setAttachments(prev => [...prev, result]);
+    }
+  });
+};
+```
+
+### Web App Drag & Drop
+
+```typescript
+// React drag and drop upload
+const DropZone: React.FC = () => {
+  const handleDrop = async (files: FileList) => {
+    const formData = new FormData();
+    formData.append('workspaceId', workspaceId);
+    formData.append('patientId', patientId);
+    formData.append('user_id', userId);
+    
+    Array.from(files).forEach(file => {
+      formData.append('files', file);
+    });
+    
+    try {
+      const result = await uploadMedia(formData);
+      onUploadSuccess(result);
+    } catch (error) {
+      onUploadError(error);
+    }
+  };
+  
+  return (
+    <div
+      onDrop={(e) => {
+        e.preventDefault();
+        handleDrop(e.dataTransfer.files);
+      }}
+      onDragOver={(e) => e.preventDefault()}
+    >
+      Drop files here to upload
+    </div>
+  );
+};
+```
+
+### Video Processing Workflow
+
+```python
+# Backend service for handling video uploads
+async def process_video_upload(file: UploadFile, metadata: dict):
+    # Upload original video
+    upload_result = await upload_media([file], metadata)
+    
+    # Video preview is automatically generated
+    video_url = upload_result['url']
+    preview_url = upload_result.get('videoPreviewUrl')
+    
+    # Additional processing (transcription, analysis, etc.)
+    if preview_url:
+        # Use preview for thumbnail in UI
+        await update_log_thumbnail(metadata['logId'], preview_url)
+    
+    return upload_result
+```
+
+## Debugging
+
+<Tip>
+Check these for upload issues:
+- **CloudWatch logs**: `/aws/lambda/media-upload` for processing errors
+- **GCS console**: Verify files are actually stored
+- **Firestore console**: Check `patient_media` collection for metadata
+- **Network panel**: Verify multipart form-data encoding
+</Tip>
+
+## Related Endpoints
+
+- [Clinical Log Processing](/api-reference/log-stream) - Clinical logs that can include media attachments
+- [Photo to Text](/api-reference/vision-logs) - Analyze uploaded images with AI
+- [Voice to Text](/api-reference/audio-transcriptions) - Transcribe uploaded audio files

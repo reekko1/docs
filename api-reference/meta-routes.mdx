@@ -1,0 +1,767 @@
+---
+title: 'Dynamic Form Fields'
+description: 'Form field metadata for dynamic lenses data entry'
+---
+The Meta Routes endpoint provides form field definitions for building dynamic UIs for manual lenses data entry. When the mobile app needs to show a form for entering vitals, labs, or other clinical data, these endpoints tell it exactly which fields to display, their types, validation rules, and available options.
+
+<Info>
+**For newcomers**: Think of this as our "form builder metadata." Instead of hardcoding forms in the mobile app, these endpoints dynamically tell the app "for vitals, show a dropdown for vital type, a number field for value, etc." This makes it easy to change forms without app updates.
+
+**For senior devs**: RESTful metadata service with Pydantic models, supports both create and edit scenarios, handles vital-specific logic for blood pressure vs other vitals, and provides edit field definitions for PUT operations.
+</Info>
+
+## Overview
+
+### Key Features
+- **Dynamic form generation** - Provides field definitions for UI construction
+- **Collection-specific metadata** - Tailored fields for each lenses type
+- **Vital-specific logic** - Special handling for blood pressure vs other vitals
+- **Edit field support** - Separate definitions for editing existing data
+- **Validation rules** - Required/optional fields and input types
+
+### Why We Built It This Way
+- **No hardcoded forms** - Mobile app can adapt to backend changes without updates
+- **Consistent validation** - Same field definitions used for forms and API validation
+- **Type safety** - Structured field types prevent UI/API mismatches
+- **Flexible editing** - Different field sets for create vs edit operations
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+All meta endpoints require API key authentication.
+
+## Endpoints
+
+### Get Form Fields for Collection
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.narra.com/api/v1/meta/form-fields/vitals \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python
+import requests
+
+# Get form fields for creating vitals
+response = requests.get(
+    "https://api.narra.com/api/v1/meta/form-fields/vitals",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+form_fields = response.json()
+```
+
+</CodeGroup>
+
+**GET** `/meta/form-fields/{collection_type}`
+
+Returns form field definitions for manual data entry in the specified collection.
+
+#### Path Parameters
+
+<ParamField path="collection_type" type="string" required>
+  The type of clinical data: `vitals`, `labs`, `medications`, `allergies`, `problems`, `imaging`, `plans`, or `family_social_history`
+</ParamField>
+
+#### Response
+
+```json
+[
+  {
+    "name": "vital_type",
+    "label": "Vital Sign",
+    "type": "select", 
+    "required": true,
+    "options": ["blood_pressure", "heart_rate", "respiratory_rate", "oxygen_saturation", "temperature"]
+  },
+  {
+    "name": "timestamp",
+    "label": "Timestamp (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "value",
+    "label": "Value", 
+    "type": "int",
+    "required": false,
+    "options": null
+  }
+]
+```
+
+<ResponseField name="name" type="string">
+  Machine-readable field name used in API requests
+</ResponseField>
+
+<ResponseField name="label" type="string">
+  Human-readable label for UI display
+</ResponseField>
+
+<ResponseField name="type" type="string">
+  Input type: `text`, `textarea`, `select`, `int`, `number`
+</ResponseField>
+
+<ResponseField name="required" type="boolean">
+  Whether this field is mandatory for POST operations
+</ResponseField>
+
+<ResponseField name="options" type="array">
+  Available options for `select` type fields (null for other types)
+</ResponseField>
+
+### Get Vital-Specific Fields
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.narra.com/api/v1/meta/form-fields/vitals/blood_pressure \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python
+# Get fields specific to blood pressure entry
+response = requests.get(
+    "https://api.narra.com/api/v1/meta/form-fields/vitals/blood_pressure", 
+    headers={"X-API-Key": "your-api-key"}
+)
+
+bp_fields = response.json()
+```
+
+</CodeGroup>
+
+**GET** `/meta/form-fields/vitals/{vital_type}`
+
+Returns tailored form fields for specific vital types.
+
+#### Path Parameters
+
+<ParamField path="vital_type" type="string" required>
+  Specific vital type: `blood_pressure`, `heart_rate`, `respiratory_rate`, `oxygen_saturation`, or `temperature`
+</ParamField>
+
+#### Blood Pressure Response
+```json
+[
+  {
+    "name": "value_systolic",
+    "label": "Systolic Value",
+    "type": "int",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "value_diastolic", 
+    "label": "Diastolic Value",
+    "type": "int",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "unit",
+    "label": "Unit",
+    "type": "text",
+    "required": false,
+    "options": null
+  }
+]
+```
+
+#### Other Vitals Response
+```json
+[
+  {
+    "name": "value",
+    "label": "Value",
+    "type": "int",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "unit",
+    "label": "Unit", 
+    "type": "text",
+    "required": false,
+    "options": null
+  }
+]
+```
+
+### Get History Edit Fields
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.narra.com/api/v1/meta/history-edit-fields/labs \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python
+# Get editable fields for lab entries
+response = requests.get(
+    "https://api.narra.com/api/v1/meta/history-edit-fields/labs",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+edit_fields = response.json()
+```
+
+</CodeGroup>
+
+**GET** `/meta/history-edit-fields/labs`
+
+Returns editable fields for lab result entries (excludes immutable audit fields).
+
+#### Response
+```json
+[
+  {
+    "name": "value",
+    "label": "Value",
+    "type": "int", 
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "unit",
+    "label": "Unit",
+    "type": "text",
+    "required": false,
+    "options": null
+  }
+]
+```
+
+### Get Vital History Edit Fields
+
+**GET** `/meta/vitals/{vital_type}/history-edit-fields`
+
+Returns editable fields for specific vital types in history entries.
+
+#### Blood Pressure Edit Fields
+```json
+[
+  {
+    "name": "value_systolic",
+    "label": "Systolic Value", 
+    "type": "int",
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "value_diastolic",
+    "label": "Diastolic Value",
+    "type": "int", 
+    "required": false,
+    "options": null
+  }
+]
+```
+
+#### Other Vitals Edit Fields
+```json
+[
+  {
+    "name": "value",
+    "label": "Value",
+    "type": "text",
+    "required": false, 
+    "options": null
+  }
+]
+```
+
+<Note>
+Temperature uses `text` type to support decimal values (e.g., 98.6).
+</Note>
+
+### Get Top-Level Edit Fields
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.narra.com/api/v1/meta/top-level-edit-fields/medications \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python
+# Get top-level editable fields for medications
+response = requests.get(
+    "https://api.narra.com/api/v1/meta/top-level-edit-fields/medications",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+top_level_fields = response.json()
+```
+
+</CodeGroup>
+
+**GET** `/meta/top-level-edit-fields/{collection_type}`
+
+Returns fields that can be edited via PUT `/{doc_id}/top` endpoint.
+
+#### Response (Medications Example)
+```json
+[
+  {
+    "name": "medication",
+    "label": "Medication Name",
+    "type": "text",
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "status", 
+    "label": "Status",
+    "type": "select",
+    "required": false,
+    "options": ["active", "paused", "discontinued"]
+  },
+  {
+    "name": "context",
+    "label": "Context/Reason",
+    "type": "textarea",
+    "required": false,
+    "options": null
+  }
+]
+```
+
+<Note>
+Vitals and labs return empty arrays - they don't support top-level field editing.
+</Note>
+
+## Field Definitions by Collection
+
+### Vitals
+<Accordion title="Vitals Form Fields">
+```json
+[
+  {
+    "name": "vital_type",
+    "label": "Vital Sign",
+    "type": "select",
+    "required": true,
+    "options": ["blood_pressure", "heart_rate", "respiratory_rate", "oxygen_saturation", "temperature"]
+  },
+  {
+    "name": "timestamp", 
+    "label": "Timestamp (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "value",
+    "label": "Value",
+    "type": "int",
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "value_systolic",
+    "label": "Systolic Value", 
+    "type": "int",
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "value_diastolic",
+    "label": "Diastolic Value",
+    "type": "int",
+    "required": false,
+    "options": null
+  }
+]
+```
+</Accordion>
+
+### Labs
+<Accordion title="Labs Form Fields">
+```json
+[
+  {
+    "name": "lab_name",
+    "label": "Lab Name",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "timestamp",
+    "label": "Timestamp (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text", 
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "value",
+    "label": "Value",
+    "type": "int",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "unit",
+    "label": "Unit",
+    "type": "text",
+    "required": false,
+    "options": null
+  }
+]
+```
+</Accordion>
+
+### Medications
+<Accordion title="Medications Form Fields">
+```json
+[
+  {
+    "name": "medication_name",
+    "label": "Medication Name", 
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "recorded_at",
+    "label": "Recorded At (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "status",
+    "label": "Status",
+    "type": "select",
+    "required": false,
+    "options": ["active", "paused", "discontinued"]
+  },
+  {
+    "name": "value",
+    "label": "Dosage",
+    "type": "text",
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "unit",
+    "label": "Unit",
+    "type": "text", 
+    "required": false,
+    "options": null
+  },
+  {
+    "name": "context",
+    "label": "Context/Reason",
+    "type": "textarea",
+    "required": false,
+    "options": null
+  }
+]
+```
+</Accordion>
+
+### Allergies
+<Accordion title="Allergies Form Fields">
+```json
+[
+  {
+    "name": "allergen",
+    "label": "Allergen",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "recorded_at",
+    "label": "Recorded At (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "reaction",
+    "label": "Reaction",
+    "type": "textarea",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "severity",
+    "label": "Severity",
+    "type": "select",
+    "required": false,
+    "options": ["mild", "moderate", "severe"]
+  }
+]
+```
+</Accordion>
+
+### Problems
+<Accordion title="Problems Form Fields">
+```json
+[
+  {
+    "name": "problem",
+    "label": "Problem Description",
+    "type": "textarea",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "timestamp",
+    "label": "Timestamp (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "status",
+    "label": "Status",
+    "type": "select",
+    "required": false,
+    "options": ["new", "ongoing", "improving", "worsening", "resolved"]
+  }
+]
+```
+</Accordion>
+
+### Plans
+<Accordion title="Plans Form Fields">
+```json
+[
+  {
+    "name": "plan",
+    "label": "Plan Item",
+    "type": "textarea",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "recorded_at",
+    "label": "Recorded At (YYYY-MM-DDTHH:MM:SSZ)",
+    "type": "text",
+    "required": true,
+    "options": null
+  },
+  {
+    "name": "category",
+    "label": "Category",
+    "type": "select",
+    "required": false,
+    "options": ["Medications", "Procedures", "Follow-up", "Referrals", "Consultations", "Patient Education", "Lifestyle", "Monitoring", "Other"]
+  },
+  {
+    "name": "status",
+    "label": "Status",
+    "type": "select",
+    "required": false,
+    "options": ["active", "complete"]
+  }
+]
+```
+</Accordion>
+
+## Field Type Reference
+
+### Input Types
+- **`text`** - Single-line text input (names, units, timestamps)
+- **`textarea`** - Multi-line text input (descriptions, reactions, contexts)
+- **`select`** - Dropdown with predefined options
+- **`int`** - Integer input (lab values, vital readings)
+- **`number`** - Deprecated, use `int` instead
+
+### Timestamp Format
+All timestamp fields expect ISO 8601 format: `YYYY-MM-DDTHH:MM:SSZ`
+
+Examples:
+- `2024-01-15T10:30:00Z`
+- `2024-12-25T23:59:59Z`
+
+### Timestamp Field Names
+- **`timestamp`** - Used by: vitals, labs, imaging, problems
+- **`recorded_at`** - Used by: allergies, family_social_history, medications, plans
+
+## Special Cases
+
+### Blood Pressure
+Blood pressure requires special handling:
+
+**For Entry:**
+- Use `value_systolic` and `value_diastolic` fields
+- Cannot use generic `value` field
+- Unit typically "mmHg"
+
+**For Editing:**
+- Both systolic and diastolic fields are editable
+- Both fields use `int` type
+
+### Temperature
+Temperature uses `text` type instead of `int` to support decimal values:
+- Valid: `98.6`, `37.2`, `101.5`
+- Invalid: Cannot use integer-only input
+
+### Required vs Optional
+- **Create operations** - All fields marked `required: true` must be provided
+- **Edit operations** - All fields become optional (can update subset)
+- **Audit fields** - Never editable (entry_id, source, created_by, log_id)
+
+## Error Handling
+
+<ResponseField name="404 Not Found">
+  Collection type not found or not supported
+  ```json
+  {
+    "detail": "Collection type 'invalid_type' not found or not supported for form field generation."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  Unrecognized vital type
+  ```json
+  {
+    "detail": "Vital type 'invalid_vital' not found."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  Missing form field definitions (configuration error)
+</ResponseField>
+
+## Common Patterns
+
+### Dynamic Form Generation
+```typescript
+// Mobile app form generation
+const generateForm = async (collectionType: string) => {
+  const response = await fetch(`/meta/form-fields/${collectionType}`, {
+    headers: { 'X-API-Key': apiKey }
+  });
+  
+  const fields = await response.json();
+  
+  return fields.map(field => ({
+    name: field.name,
+    label: field.label,
+    type: field.type,
+    required: field.required,
+    options: field.options,
+    validation: field.required ? 'required' : 'optional'
+  }));
+};
+
+// Usage
+const vitalFields = await generateForm('vitals');
+const labFields = await generateForm('labs');
+```
+
+### Vital-Specific Form Logic
+```typescript
+// Handle vital type selection
+const getVitalFields = async (vitalType: string) => {
+  const response = await fetch(`/meta/form-fields/vitals/${vitalType}`, {
+    headers: { 'X-API-Key': apiKey }
+  });
+  
+  const fields = await response.json();
+  
+  // Blood pressure returns systolic/diastolic
+  // Other vitals return single value field
+  return fields;
+};
+
+// Usage
+const bpFields = await getVitalFields('blood_pressure');   // systolic, diastolic
+const hrFields = await getVitalFields('heart_rate');       // value
+```
+
+### Edit Form Generation
+```typescript
+// Generate edit form for existing entries
+const generateEditForm = async (collectionType: string, entryType?: string) => {
+  let endpoint = '';
+  
+  if (collectionType === 'labs') {
+    endpoint = '/meta/history-edit-fields/labs';
+  } else if (collectionType === 'vitals' && entryType) {
+    endpoint = `/meta/vitals/${entryType}/history-edit-fields`;
+  } else {
+    endpoint = `/meta/top-level-edit-fields/${collectionType}`;
+  }
+  
+  const response = await fetch(endpoint, {
+    headers: { 'X-API-Key': apiKey }
+  });
+  
+  return response.json();
+};
+```
+
+## Integration Example
+
+Here's how the mobile app typically uses meta routes:
+
+```typescript
+// Complete form workflow
+class FormBuilder {
+  async buildCreateForm(collectionType: string, vitalType?: string) {
+    let fields;
+    
+    if (collectionType === 'vitals' && vitalType) {
+      // Get vital-specific fields
+      fields = await this.getVitalFields(vitalType);
+    } else {
+      // Get standard collection fields
+      fields = await this.getCollectionFields(collectionType);
+    }
+    
+    return this.renderForm(fields);
+  }
+  
+  async buildEditForm(collectionType: string, isTopLevel: boolean, vitalType?: string) {
+    let fields;
+    
+    if (isTopLevel) {
+      fields = await this.getTopLevelEditFields(collectionType);
+    } else if (collectionType === 'vitals' && vitalType) {
+      fields = await this.getVitalEditFields(vitalType);
+    } else if (collectionType === 'labs') {
+      fields = await this.getLabEditFields();
+    }
+    
+    return this.renderForm(fields, { allOptional: true });
+  }
+  
+  private renderForm(fields: FormField[], options?: { allOptional?: boolean }) {
+    return fields.map(field => {
+      const required = options?.allOptional ? false : field.required;
+      
+      switch (field.type) {
+        case 'select':
+          return <SelectField {...field} required={required} />;
+        case 'textarea':
+          return <TextAreaField {...field} required={required} />;
+        case 'int':
+          return <NumberField {...field} required={required} />;
+        default:
+          return <TextField {...field} required={required} />;
+      }
+    });
+  }
+}
+```
+
+## Related Endpoints
+
+- [Manual Lenses Entry](/api-reference/patient-data) - Uses these field definitions for data validation
+- [Clinical Log Processing](/api-reference/log-stream) - AI processing that can populate these data structures

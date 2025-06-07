@@ -1,0 +1,443 @@
+---
+title: 'Photo to Text'
+description: 'Convert images to log-ready text for simplified documentation'
+---
+The Vision Logs endpoint converts medical images into log-ready text to simplify clinical documentation. When a doctor takes a photo of lab results sheets, monitor displays, wound photos, or any clinical imagery, this endpoint analyzes the content and generates clean text that doctors can review and use as log entries.
+
+<Info>
+**For newcomers**: Think of this as our "image-to-text" converter. Instead of manually typing lab values from a printout or describing a wound, doctors can snap a photo and get draft text ready to review and post. Like audio transcription, it creates starting points that doctors can edit before posting.
+
+**For senior devs**: Groq Vision API with Llama-4-Maverick that extracts visible information from images and formats it as clinical text. Returns draft content for human review - never auto-posts. Part of the multi-modal documentation workflow alongside audio transcription.
+</Info>
+
+## Overview
+
+### Key Features
+- **Image-to-text conversion** - Extract content from lab sheets, monitors, wound photos
+- **Review-first workflow** - Generates draft text for doctor review and editing
+- **Clinical context** - Optional patient data integration for better interpretation
+- **Medical shorthand** - Outputs match clinical documentation style
+- **Multi-image support** - Process multiple images in one request
+- **Safety first** - Only describes what's visible, no assumptions
+
+### Output Sections
+The AI generates relevant sections based on image content:
+- **Summary** - Brief one-line overview
+- **Hx** - History visible in image
+- **Complaints** - Patient complaints if documented
+- **Exam** - Physical exam findings
+- **Imaging** - Radiology or imaging results
+- **Labs** - Laboratory values
+- **Vitals** - Vital signs
+- **Plan** - Treatment plans or orders
+
+### Why We Built It This Way
+- **Groq for speed** - Faster inference than GPT-4V for real-time use
+- **Structured prompts** - Consistent, professional medical documentation
+- **Context-aware** - Better interpretation when patient history is known
+- **No hallucinations** - Strict instruction to only report visible information
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+Vision analysis requires API key authentication.
+
+## Endpoint
+
+### Analyze Medical Images
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/vision-logs \
+  -H "X-API-Key: your-api-key" \
+  -F "files=@wound_photo.jpg" \
+  -F "files=@lab_results.png" \
+  -F "patient_id=pt_123"
+```
+
+```python Python
+import requests
+
+# Analyze medical images
+files = [
+    ('files', ('wound_photo.jpg', open('wound_photo.jpg', 'rb'), 'image/jpeg')),
+    ('files', ('monitor_display.png', open('monitor_display.png', 'rb'), 'image/png'))
+]
+
+data = {
+    'patient_id': 'pt_123'  # Optional for context
+}
+
+response = requests.post(
+    "https://api.narra.com/api/v1/vision-logs",
+    headers={"X-API-Key": "your-api-key"},
+    files=files,
+    data=data
+)
+
+analysis = response.json()
+```
+
+```javascript JavaScript
+// Analyze images from mobile app
+const analyzeImages = async (images, patientId) => {
+  const formData = new FormData();
+  
+  // Add images
+  images.forEach((image, index) => {
+    formData.append('files', {
+      uri: image.uri,
+      type: image.type || 'image/jpeg',
+      name: image.fileName || `image${index}.jpg`
+    });
+  });
+  
+  // Add optional patient context
+  if (patientId) {
+    formData.append('patient_id', patientId);
+  }
+  
+  const response = await fetch('/api/v1/vision-logs', {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+    },
+    body: formData
+  });
+  
+  return response.json();
+};
+```
+
+</CodeGroup>
+
+**POST** `/vision-logs`
+
+Analyzes one or more medical images to generate clinical documentation.
+
+### Request Body (multipart/form-data)
+
+<ParamField body="files" type="file[]" required>
+  One or more image files to analyze. Supports all standard image formats (JPEG, PNG, GIF, BMP, etc.)
+</ParamField>
+
+<ParamField body="patient_id" type="string">
+  Optional patient ID to include clinical context in the analysis. When provided, the AI considers:
+  - Current problems list
+  - Active medications
+  - Recent labs and imaging
+  - Allergies
+  - Family/social history
+  - Active treatment plans
+</ParamField>
+
+### Response
+
+```json
+{
+  "analysis_text": "Exam: 3cm circular wound left lower extremity, granulation tissue present, no signs of infection; surrounding skin intact\nPlan: Continue daily dressing changes; monitor for healing progression",
+  "analysis_json": null,
+  "model_used": "meta-llama/llama-4-maverick-17b-128e-instruct"
+}
+```
+
+<ResponseField name="analysis_text" type="string">
+  Clinical analysis in medical shorthand format. Only includes sections relevant to the image content.
+</ResponseField>
+
+<ResponseField name="analysis_json" type="object">
+  Optional structured data (currently always null, reserved for future use)
+</ResponseField>
+
+<ResponseField name="model_used" type="string">
+  The AI model used for analysis
+</ResponseField>
+
+## Analysis Examples
+
+### Wound Photo
+**Input**: Photo of surgical wound  
+**Output**:
+```
+Exam: 8cm vertical midline incision, staples intact, minimal erythema at edges; no drainage or dehiscence
+Plan: Staple removal POD#10 if healing well
+```
+
+### Lab Results Sheet
+**Input**: Photo of printed lab results sheet  
+**Output**:
+```
+Labs: WBC 12.3, Hgb 9.8, Plt 189; Na 138, K 4.2, Cr 1.1; CRP 45
+Summary: Mild leukocytosis, anemia noted
+```
+
+**Doctor Review**: Doctor can edit this text before posting as a log entry, perhaps adding:
+```
+Labs: WBC 12.3 (↑), Hgb 9.8 (↓), Plt 189; Na 138, K 4.2, Cr 1.1; CRP 45 (↑)
+Summary: Mild leukocytosis and anemia noted, consistent with post-operative state
+Plan: Monitor CBC, consider iron supplementation
+```
+
+### Monitor Display
+**Input**: Photo of bedside monitor  
+**Output**:
+```
+Vitals: HR 92, BP 128/76, RR 18, O2 sat 96% on 2L NC, Temp 37.2C
+```
+
+### Non-Medical Image
+**Input**: Random non-medical photo  
+**Output**:
+```
+Image does not contain medically relevant information.
+```
+
+## Clinical Context Integration
+
+When `patient_id` is provided, the system fetches current patient data:
+
+```python
+# Example patient context included in prompt
+"""
+Current patient context for reference:
+- Problems: Type 2 DM, HTN, post-op day 3 s/p appendectomy
+- Medications: Metformin 1000mg BID, Lisinopril 10mg daily
+- Recent Labs: WBC trending down (15→12), Hgb stable at 10
+- Allergies: Penicillin (rash)
+- Plan: Advance diet, ambulate TID
+"""
+```
+
+This context helps the AI better interpret findings but is **never included in the output** - only visible findings are documented.
+
+## Image Processing
+
+### Supported Formats
+- **JPEG** (.jpg, .jpeg)
+- **PNG** (.png)
+- **GIF** (.gif)
+- **BMP** (.bmp)
+- **WebP** (.webp)
+- Any format with "image/" MIME type
+
+### Processing Flow
+1. **Validation** - Verify files are images
+2. **Encoding** - Convert to base64 data URLs
+3. **Context fetch** - Get patient data if ID provided
+4. **AI Analysis** - Send to Groq with clinical prompt
+5. **Response** - Return structured clinical notes
+
+### Size Considerations
+- No explicit size limits in the application
+- Images are base64 encoded (increases size ~33%)
+- Large images may hit API gateway timeouts
+- Recommend keeping images under 10MB
+
+## Error Handling
+
+<ResponseField name="400 Bad Request">
+  No valid image files provided
+  ```json
+  {
+    "detail": "No files were uploaded or No valid images were found in the uploaded files"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  Missing Groq API key configuration
+  ```json
+  {
+    "detail": "GROQ_API_KEY environment variable is not set"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="503 Service Unavailable">
+  Groq API call failed
+  ```json
+  {
+    "detail": "Error calling Groq API: [error details]"
+  }
+  ```
+</ResponseField>
+
+## Common Patterns
+
+### Wound Tracking
+```python
+# Track wound healing over time
+def track_wound_progress(patient_id: str, wound_images: list):
+    analyses = []
+    
+    for image_path in wound_images:
+        with open(image_path, 'rb') as f:
+            files = [('files', (image_path, f, 'image/jpeg'))]
+            response = requests.post(
+                "/vision-logs",
+                headers={"X-API-Key": api_key},
+                files=files,
+                data={'patient_id': patient_id}
+            )
+            
+            analyses.append({
+                'date': extract_date_from_filename(image_path),
+                'analysis': response.json()['analysis_text']
+            })
+    
+    return analyses
+```
+
+### Batch Lab Photo Processing
+```python
+# Process multiple lab result photos
+async def process_lab_photos(lab_images: list):
+    files = []
+    for img in lab_images:
+        files.append(('files', (img.name, img.content, 'image/jpeg')))
+    
+    response = await async_client.post(
+        "/vision-logs",
+        headers={"X-API-Key": api_key},
+        files=files
+    )
+    
+    # Parse lab values from analysis
+    analysis = response.json()['analysis_text']
+    return extract_lab_values(analysis)
+```
+
+## Performance Tips
+
+1. **Batch images** - Send multiple related images in one request
+2. **Compress first** - Reduce image size before upload for faster processing
+3. **Patient context** - Include patient_id for more accurate interpretation
+4. **Image quality** - Ensure text/details are clearly visible
+
+## Integration Example
+
+Here's how the mobile app typically uses vision analysis in the log creation workflow:
+
+```typescript
+// React Native camera integration for log creation
+import { launchCamera } from 'react-native-image-picker';
+
+const capturePhotoForLog = async (patientId: string) => {
+  // Capture image
+  const result = await launchCamera({
+    mediaType: 'photo',
+    saveToPhotos: true,
+    quality: 0.8,  // Compress to 80% quality
+  });
+  
+  if (!result.assets?.[0]) return;
+  
+  const asset = result.assets[0];
+  
+  // Step 1: Upload image to get permanent URL
+  const mediaFormData = new FormData();
+  mediaFormData.append('workspaceId', workspaceId);
+  mediaFormData.append('patientId', patientId);
+  mediaFormData.append('user_id', userId);
+  mediaFormData.append('files', {
+    uri: asset.uri,
+    type: asset.type,
+    name: asset.fileName,
+  } as any);
+  
+  const uploadResponse = await fetch('/uploads/media', {
+    method: 'POST',
+    headers: { 'X-API-Key': apiKey },
+    body: mediaFormData,
+  });
+  
+  const { url: imageUrl } = await uploadResponse.json();
+  
+  // Step 2: Analyze image to get log text
+  const visionFormData = new FormData();
+  visionFormData.append('files', {
+    uri: asset.uri,
+    type: asset.type,
+    name: asset.fileName,
+  } as any);
+  visionFormData.append('patient_id', patientId);
+  
+  const visionResponse = await fetch('/vision-logs', {
+    method: 'POST',
+    headers: { 'X-API-Key': apiKey },
+    body: visionFormData,
+  });
+  
+  const { analysis_text } = await visionResponse.json();
+  
+  // Step 3: Create log with image analysis text and media attachment
+  if (analysis_text !== 'Image does not contain medically relevant information.') {
+    const logData = {
+      log: analysis_text,  // Use vision analysis as log content
+      patient_id: patientId,
+      user_id: userId,
+      workspace_id: workspaceId,
+      media: [imageUrl]    // Attach the uploaded image
+    };
+    
+    // Post to log stream
+    const logResponse = await fetch('/log/stream', {
+      method: 'POST',
+      headers: { 
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(logData),
+    });
+    
+    // Handle streaming response...
+  }
+};
+```
+
+### Simple Log Creation Flow
+
+```typescript
+// Simplified workflow: Photo → Text → Log
+const quickPhotoLog = async (patientId: string) => {
+  const photo = await capturePhoto();
+  const logText = await analyzeWithVision(photo, patientId);
+  await createLog(logText, patientId, [photo.url]);
+};
+```
+
+## Best Practices
+
+<Tip>
+**DO:**
+- Ensure good lighting and focus for text/details
+- Include patient_id for context when available
+- Batch related images together
+- Use for objective findings documentation
+
+**DON'T:**
+- Upload non-medical images
+- Rely on it for definitive diagnosis
+- Upload patient identification information
+- Use for images requiring specialized interpretation
+</Tip>
+
+## Debugging
+
+<Tip>
+Check these for analysis issues:
+- **Image quality**: Ensure text/details are clearly visible
+- **CloudWatch logs**: `/aws/lambda/vision-logs` for processing errors
+- **Patient context**: Verify patient_id is valid if provided
+- **File format**: Confirm MIME type starts with "image/"
+</Tip>
+
+## Related Endpoints
+
+- [Media Uploads](/api-reference/uploads) - Upload and store images permanently
+- [Clinical Log Processing](/api-reference/log-stream) - Create logs with analyzed image content
+- [Voice to Text](/api-reference/audio-transcriptions) - Similar AI processing for audio

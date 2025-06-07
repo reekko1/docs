@@ -1,0 +1,699 @@
+---
+title: 'FCM Overview'
+description: 'Firebase Cloud Messaging for healthcare notifications'
+---
+The FCM (Firebase Cloud Messaging) endpoint provides a comprehensive push notification system for Narra's healthcare workflows. It supports multi-device management, healthcare-specific notification templates, and clinical workflow integration for keeping medical teams connected and informed.
+
+<Info>
+**For newcomers**: Think of this as our "notification center." It sends push notifications to doctors' phones and tablets for things like critical lab results, appointment reminders, task assignments, and patient updates. Each user can have multiple devices registered.
+
+**For senior devs**: Firebase Admin SDK integration with Firestore token management, template-based notifications with Pydantic schemas, multi-device support with automatic failure handling, and healthcare-specific workflow templates.
+</Info>
+
+## Overview
+
+### Key Features
+- **Multi-device support** - Each user can register multiple iOS, Android, and web devices
+- **Healthcare templates** - Pre-built templates for clinical workflows
+- **Priority handling** - Critical notifications (like lab alerts) get high priority
+- **Token lifecycle management** - Automatic cleanup of inactive devices
+- **Batch operations** - Send to multiple users efficiently
+- **Rich notifications** - Images, custom data, deep linking
+
+### Notification Types
+- **Appointment reminders** - Patient appointments with provider details
+- **Lab results** - Normal and critical lab result alerts
+- **Medication reminders** - Patient medication scheduling
+- **Task assignments** - Clinical task management
+- **Patient updates** - Record changes and status updates
+- **System alerts** - Maintenance and emergency notifications
+
+### Why We Built It This Way
+- **Template system** - Consistent, validated notifications across the app
+- **Multi-device tokens** - Healthcare providers use multiple devices
+- **Failure tracking** - Automatic cleanup of invalid tokens
+- **Healthcare focus** - Templates designed for clinical workflows
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+All FCM endpoints require API key authentication.
+
+## Token Management
+
+### Register Device Token
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/fcm/tokens/register \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user_123",
+    "token": "fcm_token_string_here",
+    "device_type": "ios",
+    "device_name": "Dr. Smith iPhone",
+    "device_id": "device_unique_id",
+    "app_version": "1.2.3",
+    "platform_data": {
+      "bundle_id": "com.narra.app",
+      "environment": "production"
+    }
+  }'
+```
+
+```python Python
+import requests
+
+# Register FCM token for iOS device
+response = requests.post(
+    "https://api.narra.com/api/v1/fcm/tokens/register",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "user_id": "user_123",
+        "token": "fcm_token_from_firebase_sdk",
+        "device_type": "ios",
+        "device_name": "Dr. Smith iPhone",
+        "device_id": "device_unique_id",
+        "app_version": "1.2.3",
+        "platform_data": {
+            "bundle_id": "com.narra.app",
+            "environment": "production"
+        }
+    }
+)
+```
+
+```javascript JavaScript
+// Register token from React Native app
+const registerFCMToken = async (fcmToken) => {
+  const deviceInfo = await getDeviceInfo();
+  
+  const response = await fetch('/fcm/tokens/register', {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      user_id: currentUser.id,
+      token: fcmToken,
+      device_type: Platform.OS, // 'ios' or 'android'
+      device_name: deviceInfo.deviceName,
+      device_id: deviceInfo.uniqueId,
+      app_version: VersionInfo.appVersion,
+      platform_data: {
+        bundle_id: Bundle.bundleIdentifier,
+        environment: __DEV__ ? 'development' : 'production'
+      }
+    })
+  });
+};
+```
+
+</CodeGroup>
+
+**POST** `/fcm/tokens/register`
+
+Registers or updates an FCM token for a user's device.
+
+#### Request Body
+
+<ParamField body="user_id" type="string" required>
+  The user ID to associate this token with
+</ParamField>
+
+<ParamField body="token" type="string" required>
+  The FCM registration token from Firebase SDK
+</ParamField>
+
+<ParamField body="device_type" type="string" required>
+  Device platform: `ios`, `android`, or `web`
+</ParamField>
+
+<ParamField body="device_name" type="string" required>
+  Human-readable device name (e.g., "Dr. Smith's iPhone")
+</ParamField>
+
+<ParamField body="device_id" type="string" required>
+  Unique device identifier
+</ParamField>
+
+<ParamField body="app_version" type="string" required>
+  Application version for debugging purposes
+</ParamField>
+
+<ParamField body="platform_data" type="object">
+  Platform-specific metadata:
+  - **iOS**: `bundle_id`, `environment`
+  - **Android**: `package_name`, `environment`
+  - **Web**: `domain`, `browser_info`
+</ParamField>
+
+#### Response
+
+```json
+{
+  "message": "FCM token registered successfully",
+  "masked_token": "fcm_token...last_chars"
+}
+```
+
+### Remove Device Token
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://api.narra.com/api/v1/fcm/tokens \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "user_123",
+    "token": "fcm_token_to_remove"
+  }'
+```
+
+```python Python
+# Remove token on logout/uninstall
+response = requests.delete(
+    "https://api.narra.com/api/v1/fcm/tokens",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "user_id": "user_123",
+        "token": "fcm_token_to_remove"
+    }
+)
+```
+
+</CodeGroup>
+
+**DELETE** `/fcm/tokens`
+
+Removes an FCM token when user logs out or uninstalls the app.
+
+### List User Tokens
+
+**GET** `/fcm/tokens/{user_id}`
+
+Returns all active FCM tokens for a user (tokens are masked for security).
+
+#### Response
+
+```json
+{
+  "tokens": [
+    {
+      "masked_token": "fcm_abc123...xyz789",
+      "device_type": "ios",
+      "device_name": "Dr. Smith iPhone",
+      "app_version": "1.2.3",
+      "created_at": "2024-01-15T10:30:00Z",
+      "is_active": true,
+      "failure_count": 0
+    }
+  ]
+}
+```
+
+## Sending Notifications
+
+### Direct Send
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/fcm/send \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "recipient": {
+      "type": "user_id",
+      "value": "user_123"
+    },
+    "notification": {
+      "title": "Critical Lab Alert",
+      "body": "Patient John Doe has critical lab values requiring immediate attention.",
+      "image": "https://example.com/alert-icon.png",
+      "click_action": "/patients/pt_456/labs"
+    },
+    "data": {
+      "patient_id": "pt_456",
+      "priority": "high",
+      "lab_type": "critical"
+    },
+    "priority": "high"
+  }'
+```
+
+```python Python
+# Send critical lab alert
+response = requests.post(
+    "https://api.narra.com/api/v1/fcm/send",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "recipient": {
+            "type": "user_id",
+            "value": "doctor_456"
+        },
+        "notification": {
+            "title": "Critical Lab Alert",
+            "body": "Patient has critical troponin levels",
+            "click_action": "/patients/pt_123/labs"
+        },
+        "data": {
+            "patient_id": "pt_123",
+            "priority": "high"
+        },
+        "priority": "high"
+    }
+)
+```
+
+</CodeGroup>
+
+**POST** `/fcm/send`
+
+Sends a notification using flexible recipient targeting.
+
+#### Request Body
+
+<ParamField body="recipient" type="object" required>
+  Recipient targeting:
+  - `type: "user_id"` - Send to all devices for a user
+  - `type: "email"` - Find user by email and send to their devices  
+  - `type: "tokens"` - Send directly to comma-separated FCM tokens
+</ParamField>
+
+<ParamField body="notification" type="object" required>
+  Notification content:
+  - `title` (string) - Notification title
+  - `body` (string) - Notification body text
+  - `image` (string, optional) - Image URL
+  - `click_action` (string, optional) - Deep link destination
+</ParamField>
+
+<ParamField body="data" type="object">
+  Custom data payload sent with notification
+</ParamField>
+
+<ParamField body="priority" type="string">
+  Notification priority: `high`, `normal`, or `low`
+</ParamField>
+
+### Template-Based Notifications
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/fcm/send-from-template \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "template": "lab_results",
+    "recipient": {
+      "type": "user_id", 
+      "value": "doctor_123"
+    },
+    "data": {
+      "patient_name": "John Doe",
+      "lab_type": "Troponin",
+      "result": "12.5",
+      "normal_range": "< 0.04",
+      "is_critical": true,
+      "patient_id": "pt_456"
+    }
+  }'
+```
+
+```python Python
+# Send lab result notification using template
+response = requests.post(
+    "https://api.narra.com/api/v1/fcm/send-from-template",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "template": "lab_results",
+        "recipient": {
+            "type": "user_id",
+            "value": "doctor_123"
+        },
+        "data": {
+            "patient_name": "Jane Smith",
+            "lab_type": "Hemoglobin",
+            "result": "6.8",
+            "normal_range": "12.0-15.5",
+            "is_critical": True,
+            "patient_id": "pt_789"
+        }
+    }
+)
+```
+
+</CodeGroup>
+
+**POST** `/fcm/send-from-template`
+
+Sends notifications using predefined healthcare templates.
+
+#### Available Templates
+
+<AccordionGroup>
+  <Accordion title="appointment_reminder">
+    **Use case**: Patient appointment notifications
+    ```json
+    {
+      "patient_name": "John Doe",
+      "provider_name": "Dr. Smith",
+      "appointment_time": "2024-01-15T14:30:00Z",
+      "location": "Cardiology Clinic, Room 301",
+      "appointment_type": "Follow-up"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="lab_results">
+    **Use case**: Normal and critical lab result alerts
+    ```json
+    {
+      "patient_name": "Jane Smith", 
+      "lab_type": "Troponin",
+      "result": "12.5",
+      "normal_range": "< 0.04",
+      "is_critical": true,
+      "patient_id": "pt_456"
+    }
+    ```
+    **Auto-priority**: Critical results automatically use high priority
+  </Accordion>
+  
+  <Accordion title="medication_reminder">
+    **Use case**: Patient medication scheduling
+    ```json
+    {
+      "patient_name": "Bob Johnson",
+      "medication": "Lisinopril 10mg",
+      "dosage": "1 tablet",
+      "frequency": "daily",
+      "time": "08:00",
+      "patient_id": "pt_789"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="task_assigned">
+    **Use case**: Clinical task assignments
+    ```json
+    {
+      "task_title": "Review Patient Labs",
+      "assigned_by": "Dr. Wilson",
+      "due_date": "2024-01-16T17:00:00Z",
+      "priority": "high",
+      "patient_id": "pt_123",
+      "task_id": "task_456"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="patient_update">
+    **Use case**: Patient record changes
+    ```json
+    {
+      "patient_name": "Alice Brown",
+      "update_type": "Vitals Updated",
+      "summary": "New blood pressure reading: 140/90",
+      "updated_by": "Nurse Johnson",
+      "patient_id": "pt_321"
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Test Notification
+
+**POST** `/fcm/test/{user_id}`
+
+Sends a test notification to verify FCM setup and token validity.
+
+### Batch Notifications
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/fcm/send-batch \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notifications": [
+      {
+        "recipient": {"type": "user_id", "value": "doctor_1"},
+        "notification": {
+          "title": "Department Meeting",
+          "body": "Cardiology department meeting at 3 PM"
+        }
+      },
+      {
+        "recipient": {"type": "user_id", "value": "doctor_2"}, 
+        "notification": {
+          "title": "Department Meeting",
+          "body": "Cardiology department meeting at 3 PM"
+        }
+      }
+    ]
+  }'
+```
+
+```python Python
+# Send department-wide announcement
+notifications = []
+for doctor_id in cardiology_doctors:
+    notifications.append({
+        "recipient": {"type": "user_id", "value": doctor_id},
+        "notification": {
+            "title": "Emergency Alert",
+            "body": "Code Blue in ICU Room 5"
+        },
+        "priority": "high"
+    })
+
+response = requests.post(
+    "https://api.narra.com/api/v1/fcm/send-batch", 
+    headers={"X-API-Key": "your-api-key"},
+    json={"notifications": notifications}
+)
+```
+
+</CodeGroup>
+
+**POST** `/fcm/send-batch`
+
+Sends multiple notifications efficiently (max 100 per batch).
+
+## Template Schemas
+
+### Get Template Documentation
+
+**GET** `/fcm/templates/schemas`
+
+Returns comprehensive documentation for all notification templates.
+
+#### Response
+
+```json
+{
+  "schemas": {
+    "lab_results": {
+      "description": "Lab result notifications with critical value handling",
+      "required_fields": ["patient_name", "lab_type", "result"],
+      "optional_fields": ["normal_range", "is_critical", "patient_id"],
+      "examples": [...],
+      "auto_priority": "Critical results automatically use high priority"
+    }
+  }
+}
+```
+
+## Error Handling
+
+<ResponseField name="400 Bad Request">
+  Invalid template data or missing required fields
+  ```json
+  {
+    "detail": {
+      "template": "lab_results",
+      "errors": ["patient_name is required", "lab_type is required"]
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  User not found or invalid template name
+  ```json
+  {
+    "detail": "User with ID 'user_123' not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  Firebase service errors or token delivery failures
+</ResponseField>
+
+## Token Lifecycle
+
+### Automatic Failure Handling
+1. **Delivery attempt** - FCM tries to deliver notification
+2. **Failure tracking** - Failed attempts increment failure_count
+3. **Deactivation** - Tokens with 3+ failures are marked inactive
+4. **Cleanup** - Inactive tokens are excluded from future sends
+
+### Token States
+- **Active** - `is_active: true, failure_count < 3`
+- **Failing** - `is_active: true, failure_count: 1-2`
+- **Inactive** - `is_active: false, failure_count >= 3`
+
+## Integration Examples
+
+### React Native Setup
+
+```typescript
+// FCM token management in React Native
+import messaging from '@react-native-firebase/messaging';
+import { Platform } from 'react-native';
+
+class FCMManager {
+  async initializeFCM(userId: string) {
+    // Request permission
+    const authStatus = await messaging().requestPermission();
+    
+    if (authStatus === messaging.AuthorizationStatus.AUTHORIZED) {
+      // Get FCM token
+      const token = await messaging().getToken();
+      
+      // Register with backend
+      await this.registerToken(userId, token);
+      
+      // Listen for token refresh
+      messaging().onTokenRefresh(async (newToken) => {
+        await this.registerToken(userId, newToken);
+      });
+      
+      // Handle foreground notifications
+      messaging().onMessage(async (remoteMessage) => {
+        this.handleForegroundNotification(remoteMessage);
+      });
+    }
+  }
+  
+  async registerToken(userId: string, token: string) {
+    const deviceInfo = await getDeviceInfo();
+    
+    await fetch('/fcm/tokens/register', {
+      method: 'POST',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        token: token,
+        device_type: Platform.OS,
+        device_name: deviceInfo.deviceName,
+        device_id: deviceInfo.uniqueId,
+        app_version: VersionInfo.appVersion
+      })
+    });
+  }
+  
+  async logout(userId: string) {
+    const token = await messaging().getToken();
+    
+    // Remove token on logout
+    await fetch('/fcm/tokens', {
+      method: 'DELETE',
+      headers: {
+        'X-API-Key': apiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        token: token
+      })
+    });
+  }
+}
+```
+
+### Backend Service Integration
+
+```python
+# Integrate FCM with clinical workflows
+class ClinicalNotificationService:
+    def __init__(self, fcm_api_key: str):
+        self.api_key = fcm_api_key
+        self.base_url = "https://api.narra.com/api/v1/fcm"
+    
+    async def notify_critical_lab(self, doctor_id: str, lab_data: dict):
+        """Send critical lab notification"""
+        await self._send_template_notification(
+            template="lab_results",
+            recipient_id=doctor_id,
+            data={
+                "patient_name": lab_data["patient_name"],
+                "lab_type": lab_data["lab_type"],
+                "result": lab_data["result"],
+                "normal_range": lab_data["normal_range"], 
+                "is_critical": True,
+                "patient_id": lab_data["patient_id"]
+            }
+        )
+    
+    async def notify_appointment_reminder(self, doctor_id: str, appointment: dict):
+        """Send appointment reminder"""
+        await self._send_template_notification(
+            template="appointment_reminder",
+            recipient_id=doctor_id,
+            data=appointment
+        )
+    
+    async def notify_department(self, doctor_ids: list, message: dict):
+        """Send batch notification to department"""
+        notifications = [
+            {
+                "recipient": {"type": "user_id", "value": doctor_id},
+                "notification": message
+            }
+            for doctor_id in doctor_ids
+        ]
+        
+        # Send in batches of 100
+        for i in range(0, len(notifications), 100):
+            batch = notifications[i:i+100]
+            await self._send_batch(batch)
+```
+
+## Performance Tips
+
+1. **Register early** - Register FCM tokens on app launch
+2. **Clean up tokens** - Remove tokens on logout to keep database clean
+3. **Use templates** - Templates provide validation and consistency
+4. **Batch when possible** - Use batch API for multiple notifications
+5. **Monitor failures** - Check token failure counts for delivery issues
+
+## Debugging
+
+<Tip>
+Check these for notification issues:
+- **Token registration**: Verify tokens are active in `/fcm/tokens/{user_id}`
+- **Firebase console**: Check FCM delivery reports
+- **Template validation**: Use `/fcm/templates/schemas` for field requirements
+- **Test notifications**: Use `/fcm/test/{user_id}` to verify setup
+</Tip>
+
+## Related Endpoints
+
+- [Clinical Log Processing](/api-reference/log-stream) - Clinical logs that might trigger notifications
+- [Manual Lenses Entry](/api-reference/patient-data) - Patient updates that generate alerts

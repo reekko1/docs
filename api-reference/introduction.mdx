@@ -1,33 +1,156 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'Overview'
+description: 'Comprehensive guide to Narra backend APIs for internal teams'
 ---
+Welcome to the comprehensive API documentation for Narra's backend services. This documentation is designed for internal team members - both newcomers getting started and senior developers needing quick reference.
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## What You'll Find Here
 
-## Welcome
+Our API is organized into logical groups that reflect how our healthcare platform works:
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+<CardGroup cols={2}>
+  <Card title="Core Features" icon="stethoscope" href="/api-reference/chat-v2">
+    **AI Clinical Assistant, Manual Lenses Entry, Clinical Log Processing**
+    
+    The heart of Narra - AI assistance, clinical data management, and log processing with real-time streaming.
+  </Card>
+  
+  <Card title="Data Entry Support" icon="pen-to-square" href="/api-reference/meta-routes">
+    **Dynamic Form Fields, File Upload & Storage, Knowledge Upload**
+    
+    Tools that make clinical documentation effortless - dynamic forms, media handling, and AI document processing.
+  </Card>
+  
+  <Card title="AI Services" icon="brain" href="/api-reference/vision-logs">
+    **Photo to Text, Voice to Text**
+    
+    Multi-modal AI that converts images and audio into log-ready text for simplified documentation.
+  </Card>
+  
+  <Card title="Administration" icon="gear" href="/api-reference/fcm">
+    **Push Notifications, Subscription Management**
+    
+    Admin tools for managing notifications and subscription operations.
+  </Card>
+</CardGroup>
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+## Key Concepts
+
+### Lenses
+In Narra, **lenses** are the different categories of clinical data we track:
+- **Vitals** - Blood pressure, heart rate, temperature, oxygen saturation
+- **Labs** - Laboratory test results with values and units
+- **Medications** - Current and past medications with dosing
+- **Allergies** - Patient allergies and reactions
+- **Problems** - Medical conditions and diagnoses
+- **Imaging** - Radiology and imaging studies
+- **Plans** - Treatment plans and care protocols
+- **Family/Social History** - Family medical and social factors
+
+### Logs
+**Logs** are clinical updates posted by healthcare providers throughout the day to:
+- Record patient status updates and observations
+- Keep medical teams aligned on patient care
+- Help individual providers track their patients' progress
+- Create a chronological record of patient interactions
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+All API endpoints use **API Key authentication** via the `X-API-Key` header:
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+```bash
+X-API-Key: your-api-key
 ```
+
+API keys are managed per workspace for organizational isolation.
+
+## Common Patterns
+
+### Multi-Modal Documentation
+Narra supports multiple ways to create clinical documentation:
+
+1. **Traditional typing** - Manual text entry
+2. **Voice-to-text** - Audio transcription for spoken notes
+3. **Image-to-text** - Vision analysis of photos (lab sheets, wounds, monitors)
+4. **AI processing** - Automatic extraction from uploaded documents
+
+### Real-Time Processing
+Many endpoints use **Server-Sent Events (SSE)** for real-time updates:
+- **AI Clinical Assistant** - Streams AI responses and tool usage
+- **Clinical Log Processing** - Real-time processing pipeline updates
+- **Knowledge Upload** - Status updates during file processing
+
+### Review-First Workflow
+Our AI services generate **draft content** that providers review and approve:
+- Vision and audio transcription create starting points
+- Providers edit and confirm before posting
+- No automatic posting - human oversight is always required
+
+## Getting Started
+
+<Steps>
+  <Step title="Choose Your Starting Point">
+    **New to Narra?** Start with [AI Clinical Assistant](/api-reference/chat-v2) to understand our AI assistant.
+    
+    **Working on mobile app?** Check [Manual Lenses Entry](/api-reference/patient-data) for lenses management.
+    
+    **Building documentation features?** Explore [Photo to Text](/api-reference/vision-logs) and [Voice to Text](/api-reference/audio-transcriptions).
+  </Step>
+  
+  <Step title="Set Up Authentication">
+    Get your API key from the workspace settings and test it with a simple call:
+    ```bash
+    curl -H "X-API-Key: your-key" https://api.narra.com/api/v1/fcm/test/user_123
+    ```
+  </Step>
+  
+  <Step title="Explore Examples">
+    Each endpoint includes comprehensive examples for:
+    - cURL commands for testing
+    - Python/JavaScript integration
+    - Mobile app patterns
+    - Error handling
+  </Step>
+</Steps>
+
+## Error Handling
+
+Our APIs use standard HTTP status codes with descriptive error messages:
+
+- **200 OK** - Success
+- **201 Created** - Resource created successfully
+- **400 Bad Request** - Invalid request data
+- **401 Unauthorized** - Missing or invalid API key
+- **404 Not Found** - Resource doesn't exist
+- **422 Unprocessable Entity** - Validation errors
+- **500 Internal Server Error** - Server issues
+- **503 Service Unavailable** - External service issues
+
+## Rate Limits & Performance
+
+- **No explicit rate limits** on most endpoints
+- **AI services** may have provider-specific limits (OpenAI, Groq)
+- **Streaming endpoints** use heartbeats and timeouts for reliability
+- **File uploads** support large media files with appropriate timeouts
+
+## Support
+
+<CardGroup cols={2}>
+  <Card title="Technical Questions" icon="question-circle" href="mailto:support@narralabs.ai">
+    For API integration questions, reach out to the engineering team.
+  </Card>
+  
+  <Card title="Bug Reports" icon="bug" href="mailto:support@narralabs.ai">
+    Found an issue? Let us know with specific examples and error messages.
+  </Card>
+</CardGroup>
+
+## Recent Updates
+
+This documentation covers the current production API. Key recent additions:
+- **Enhanced vision analysis** with better clinical context
+- **Improved audio transcription** accuracy
+- **Comprehensive error handling** across all endpoints
+- **Better debugging guidance** with CloudWatch references
+
+Ready to dive in? Start with the endpoint that matches your current project needs!

@@ -1,0 +1,538 @@
+---
+title: 'Manual Lenses Entry'
+description: 'Manual entry and editing of patient clinical data (lenses)'
+---
+The Patient Data endpoint manages all of Narra's **lenses data** - the structured clinical information we track for each patient. This includes vitals, labs, medications, allergies, problems, imaging, plans, and family/social history.
+
+<Info>
+**For newcomers**: Think of this as our "medical record database." When providers enter vitals manually or our AI extracts lab results from a log, it all flows through these endpoints. Each type of data (vital, lab, etc.) is called a "lens."
+
+**For senior devs**: Firestore collections with atomic transactions, audit trails on every change, UUID-based documents, and support for both manual entry and AI extraction workflows.
+</Info>
+
+## Overview
+
+### Key Features
+- **8 collection types** - Supports all major clinical data categories
+- **Full audit trails** - Every change tracked with user, timestamp, and source
+- **Manual + AI workflow** - Handles both provider entries and AI extractions
+- **Atomic operations** - Uses Firestore transactions for data consistency
+- **Flexible editing** - Edit individual entries or document-level fields
+
+### Why We Built It This Way
+- **UUID documents** - Allows editing identifying fields without breaking references
+- **Array-based entries** - Efficient storage for time-series data like vitals
+- **Source tracking** - Critical for distinguishing manual vs AI-generated data
+- **Immutable audit** - Can't accidentally lose edit history or source attribution
+
+## Authentication
+
+```bash
+# No explicit auth headers - handled at API gateway
+# User identification via user_id in request body
+```
+
+Patient data endpoints rely on gateway-level authentication. User tracking happens via required `user_id` fields.
+
+## Collection Types (Lenses)
+
+### Supported Lenses
+- **`vitals`** - Heart rate, blood pressure, temperature, O2 sat, etc.
+- **`labs`** - Laboratory results with values and units
+- **`medications`** - Current and past medications with dosing
+- **`allergies`** - Allergens, reactions, and severity
+- **`problems`** - Problem list with status tracking
+- **`imaging`** - Radiology and imaging studies
+- **`plans`** - Treatment plans and protocols
+- **`family_social_history`** - Family medical and social history
+
+### Data Structure Pattern
+
+Each collection follows a consistent structure:
+
+```json
+{
+  "patient_id": "pt_123",
+  "doc_id": "uuid-generated",
+  "created_at": "2024-01-15T10:30:00Z",
+  "created_by": "user_456",
+  "log_id": "log_789",  // If AI-extracted
+  
+  // Collection-specific top-level fields
+  "vital_type": "heart_rate",  // for vitals
+  "medication": "Lisinopril",  // for medications
+  
+  // Time-series data arrays
+  "results": [...],    // for vitals/labs
+  "history": [...]     // for others
+}
+```
+
+## Endpoints
+
+### Add Manual Entry
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/patient-data/pt_123/vitals \
+  -H "Content-Type: application/json" \
+  -d '{
+    "vital_type": "heart_rate",
+    "value": 72,
+    "unit": "BPM",
+    "timestamp": "2024-01-15T10:30:00Z",
+    "user_id": "user_456"
+  }'
+```
+
+```python Python
+import requests
+
+# Add a vital sign
+response = requests.post(
+    "https://api.narra.com/api/v1/patient-data/pt_123/vitals",
+    json={
+        "vital_type": "blood_pressure",
+        "value_systolic": 120,
+        "value_diastolic": 80,
+        "unit": "mmHg",
+        "timestamp": "2024-01-15T10:30:00Z",
+        "user_id": "user_456"
+    }
+)
+
+entry_id = response.json()["entry_id"]
+```
+
+</CodeGroup>
+
+**POST** `/patient-data/{patient_id}/{collection_type}`
+
+Creates a new manual entry in the specified collection.
+
+#### Path Parameters
+
+<ParamField path="patient_id" type="string" required>
+  The patient's unique identifier
+</ParamField>
+
+<ParamField path="collection_type" type="string" required>
+  The type of clinical data: `vitals`, `labs`, `medications`, `allergies`, `problems`, `imaging`, `plans`, or `family_social_history`
+</ParamField>
+
+#### Request Body
+
+The request body varies by collection type but always includes:
+
+<ParamField body="user_id" type="string" required>
+  The ID of the user creating this entry (for audit trail)
+</ParamField>
+
+##### Vitals
+<ParamField body="vital_type" type="string" required>
+  Type of vital: `heart_rate`, `blood_pressure`, `temperature`, `oxygen_saturation`, etc.
+</ParamField>
+
+<ParamField body="value" type="number">
+  The measurement value (required for all vitals except blood pressure)
+</ParamField>
+
+<ParamField body="value_systolic" type="number">
+  Systolic reading (required for blood pressure, cannot use with `value`)
+</ParamField>
+
+<ParamField body="value_diastolic" type="number">
+  Diastolic reading (required for blood pressure, cannot use with `value`)
+</ParamField>
+
+<ParamField body="unit" type="string">
+  Unit of measurement (auto-assigned for known vital types)
+</ParamField>
+
+<ParamField body="timestamp" type="string" required>
+  ISO 8601 timestamp of when the vital was taken
+</ParamField>
+
+##### Labs
+<ParamField body="lab_name" type="string" required>
+  Name of the lab test (automatically normalized)
+</ParamField>
+
+<ParamField body="value" type="number" required>
+  The lab result value
+</ParamField>
+
+<ParamField body="unit" type="string">
+  Unit of measurement
+</ParamField>
+
+<ParamField body="timestamp" type="string" required>
+  ISO 8601 timestamp of when the lab was drawn
+</ParamField>
+
+##### Medications
+<ParamField body="medication" type="string" required>
+  Medication name
+</ParamField>
+
+<ParamField body="status" type="string" required>
+  Medication status: `active`, `discontinued`, `held`, etc.
+</ParamField>
+
+<ParamField body="value" type="string">
+  Dosage amount
+</ParamField>
+
+<ParamField body="unit" type="string">
+  Dosage unit
+</ParamField>
+
+<ParamField body="context" type="string">
+  Additional context or instructions
+</ParamField>
+
+<ParamField body="recorded_at" type="string" required>
+  ISO 8601 timestamp of when this was recorded
+</ParamField>
+
+#### Response
+
+```json
+{
+  "message": "Entry added successfully",
+  "entry_id": "abc123def456"
+}
+```
+
+<ResponseField name="entry_id" type="string">
+  Unique identifier for the created entry (used for editing)
+</ResponseField>
+
+### Get Collection Data
+
+<CodeGroup>
+
+```bash cURL
+curl https://api.narra.com/api/v1/patient-data/pt_123/vitals
+```
+
+```python Python
+import requests
+
+# Get all vitals for a patient
+response = requests.get(
+    "https://api.narra.com/api/v1/patient-data/pt_123/vitals"
+)
+
+vitals_data = response.json()
+```
+
+</CodeGroup>
+
+**GET** `/patient-data/{patient_id}/{collection_type}`
+
+Retrieves all documents for a patient's collection type.
+
+#### Response
+
+```json
+[
+  {
+    "doc_id": "uuid-123",
+    "patient_id": "pt_123",
+    "vital_type": "heart_rate",
+    "created_at": "2024-01-15T10:30:00Z",
+    "created_by": "user_456",
+    "results": [
+      {
+        "entry_id": "abc123",
+        "value": 72,
+        "unit": "BPM",
+        "timestamp": "2024-01-15T10:30:00Z",
+        "source": "manual_entry",
+        "created_by": "user_456"
+      }
+    ]
+  }
+]
+```
+
+### Get Specific Document
+
+**GET** `/patient-data/{patient_id}/{collection_type}/{doc_id}`
+
+Retrieves a specific document with enriched user details.
+
+#### Response
+
+```json
+{
+  "doc_id": "uuid-123",
+  "patient_id": "pt_123",
+  "vital_type": "heart_rate",
+  "created_at": "2024-01-15T10:30:00Z",
+  "created_by": "user_456",
+  "created_by_details": {
+    "display_name": "Dr. Sarah Johnson",
+    "photo_url": "https://..."
+  },
+  "results": [...]
+}
+```
+
+### Edit Entry
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT https://api.narra.com/api/v1/patient-data/pt_123/vitals/uuid-123/entries/abc123 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "value": 75,
+    "user_id": "user_456"
+  }'
+```
+
+```python Python
+# Edit a specific vital sign reading
+response = requests.put(
+    "https://api.narra.com/api/v1/patient-data/pt_123/vitals/uuid-123/entries/abc123",
+    json={
+        "value": 75,
+        "unit": "BPM",
+        "user_id": "user_456"
+    }
+)
+```
+
+</CodeGroup>
+
+**PUT** `/patient-data/{patient_id}/{collection_type}/{doc_id}/entries/{entry_id}`
+
+Edits a specific entry within a document's results or history array.
+
+#### Path Parameters
+
+<ParamField path="entry_id" type="string" required>
+  The unique identifier of the entry to edit (returned when entry was created)
+</ParamField>
+
+#### Request Body
+
+<ParamField body="user_id" type="string" required>
+  The ID of the user making this edit
+</ParamField>
+
+Any other fields you want to update (varies by collection type).
+
+#### Immutable Fields
+These fields cannot be edited:
+- `entry_id`
+- `source` (automatically updated to `manual_edit`)
+- `created_by`
+- `log_id`
+
+### Edit Top-Level Fields
+
+<CodeGroup>
+
+```bash cURL
+curl -X PUT https://api.narra.com/api/v1/patient-data/pt_123/medications/uuid-123/top \
+  -H "Content-Type: application/json" \
+  -d '{
+    "medication": "Lisinopril 10mg",
+    "status": "active",
+    "user_id": "user_456"
+  }'
+```
+
+```python Python
+# Edit medication name and status
+response = requests.put(
+    "https://api.narra.com/api/v1/patient-data/pt_123/medications/uuid-123/top",
+    json={
+        "medication": "Lisinopril 10mg",
+        "status": "active", 
+        "user_id": "user_456"
+    }
+)
+```
+
+</CodeGroup>
+
+**PUT** `/patient-data/{patient_id}/{collection_type}/{doc_id}/top`
+
+Edits document-level fields and creates audit trail entries.
+
+#### Request Body
+
+<ParamField body="user_id" type="string" required>
+  The ID of the user making this edit
+</ParamField>
+
+Editable fields vary by collection type:
+
+**Allergies**: `allergen`, `reaction`, `severity`  
+**Family/Social History**: `detail`, `relevance`  
+**Imaging**: `study`, `status`, `context`  
+**Medications**: `medication`, `status`, `value`, `unit`, `context`  
+**Plans**: `plan`, `status`, `category`  
+**Problems**: `problem`, `status`  
+
+<Note>
+Vitals and labs don't currently support top-level edits.
+</Note>
+
+## Data Normalization
+
+The API automatically normalizes common variations:
+
+### Vital Types
+- `hr` → `heart_rate`
+- `bp` → `blood_pressure`
+- `temp` → `temperature`
+- `o2` → `oxygen_saturation`
+
+### Lab Names
+- `hgb` → `Hemoglobin`
+- `k` → `Potassium`
+- `na` → `Sodium`
+- `bun` → `Blood Urea Nitrogen`
+
+### Units
+- Heart rate → `BPM`
+- Temperature → `°C`
+- Blood pressure → `mmHg`
+
+## Special Cases
+
+### Blood Pressure
+Blood pressure requires special handling:
+
+```json
+{
+  "vital_type": "blood_pressure",
+  "value_systolic": 120,
+  "value_diastolic": 80,
+  "unit": "mmHg"
+  // Cannot use "value" field
+}
+```
+
+### Source Tracking
+Every entry has a `source` field:
+- `manual_entry` - Provider created
+- `manual_edit` - Provider edited
+- `ai_extracted` - AI extracted from log
+- `ai_extracted_edit` - AI updated existing data
+
+## Error Handling
+
+<ResponseField name="400 Bad Request">
+  Invalid collection type or attempting to edit disallowed fields
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  Patient, document, or entry not found
+</ResponseField>
+
+<ResponseField name="422 Unprocessable Entity">
+  Validation errors (missing required fields, invalid timestamps, etc.)
+</ResponseField>
+
+Common validation errors:
+- Missing `user_id` in request
+- Using `value` with blood pressure vitals
+- Invalid timestamp format
+- Attempting to edit immutable fields
+
+## Common Patterns
+
+### Adding Multiple Vitals
+```python
+# Add heart rate and blood pressure in sequence
+vitals = [
+    {
+        "vital_type": "heart_rate",
+        "value": 72,
+        "timestamp": "2024-01-15T10:30:00Z",
+        "user_id": "user_456"
+    },
+    {
+        "vital_type": "blood_pressure", 
+        "value_systolic": 120,
+        "value_diastolic": 80,
+        "timestamp": "2024-01-15T10:30:00Z",
+        "user_id": "user_456"
+    }
+]
+
+for vital in vitals:
+    response = requests.post(f"/patient-data/{patient_id}/vitals", json=vital)
+```
+
+### Editing with Audit Trail
+```python
+# Original entry
+entry = {
+    "medication": "Lisinopril",
+    "status": "active",
+    "user_id": "user_456"
+}
+
+# Edit the medication name (creates audit trail)
+edit = {
+    "medication": "Lisinopril 10mg",
+    "user_id": "user_789"  # Different user making edit
+}
+
+response = requests.put(f"/patient-data/{patient_id}/medications/{doc_id}/top", json=edit)
+```
+
+## Performance Tips
+
+1. **Batch operations** - Group related entries when possible
+2. **Use UUIDs** - Always use UUID-based doc_ids for new documents
+3. **Minimize top-level edits** - Edit entries when possible instead of document fields
+4. **Cache user details** - The API caches user lookups within single requests
+
+## Integration Example
+
+Here's how the mobile app typically manages patient data:
+
+```typescript
+// Add vital sign from provider input
+const addVital = async (patientId: string, vitalData: VitalInput) => {
+  const response = await fetch(`${API_URL}/patient-data/${patientId}/vitals`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...vitalData,
+      user_id: currentUser.id,
+      timestamp: new Date().toISOString()
+    })
+  });
+  
+  const result = await response.json();
+  return result.entry_id; // Save for future edits
+};
+
+// Edit existing entry
+const editVital = async (patientId: string, docId: string, entryId: string, updates: any) => {
+  return fetch(`${API_URL}/patient-data/${patientId}/vitals/${docId}/entries/${entryId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...updates,
+      user_id: currentUser.id
+    })
+  });
+};
+```
+
+## Related Endpoints
+
+- [AI Clinical Assistant](/api-reference/chat-v2) - AI assistant that can query this data
+- [Meta Routes](/api-reference/meta) - Get form field definitions for data entry
+- [Log Routes](/api-reference/logs) - Clinical logs that can extract to patient data

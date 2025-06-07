@@ -1,0 +1,355 @@
+---
+title: 'AI Clinical Assistant'
+description: 'AI-powered clinical assistant with real-time streaming'
+---
+The Chat V2 endpoint is the heart of Narra's AI assistant. It's our GPT-4-powered orchestrator that helps providers get clinical insights, search medical literature, query patient logs, and access our knowledge base - all through a conversational interface.
+
+<Info>
+**For newcomers**: Think of this as our "smart assistant" that can pull up patient lenses data, search PubMed, or help interpret clinical information. It streams responses in real-time like ChatGPT.
+
+**For senior devs**: SSE streaming with native Agno events, tool orchestration via async queues, citation tracking for compliance. Check CloudWatch for latency metrics.
+</Info>
+
+## Overview
+
+### Key Features
+- **Multi-modal support** - Accepts text prompts with optional images
+- **Real-time streaming** - Server-Sent Events (SSE) for immediate feedback
+- **Tool orchestration** - Intelligently uses search, patient data, and knowledge base
+- **Session continuity** - Maintains conversation context across messages
+- **Citation tracking** - Tracks which patient data was accessed for compliance
+
+### Why We Built It This Way
+- **Streaming over polling** - Better UX, especially for longer responses
+- **Tool call limit = 1** - Prevents frontend from being overwhelmed with concurrent updates
+- **Deferred citations** - Processes citations after completion to avoid blocking the stream
+- **Native event streaming** - Leverages Agno's built-in events for lower latency
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+All requests require API key authentication. Keys are managed per workspace.
+
+## Endpoint
+
+### Stream Chat Response
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/chat \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "What are the latest guidelines for hypertension management?",
+    "workspace_id": "ws_123",
+    "patient_id": "pt_456",
+    "use_search": true
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# SSE streaming example
+response = requests.post(
+    "https://api.narra.com/api/v1/chat",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "prompt": "Summarize this patient's recent labs",
+        "workspace_id": "ws_123",
+        "patient_id": "pt_456",
+        "session_id": "existing-session-id"  # Optional for continuity
+    },
+    stream=True
+)
+
+for line in response.iter_lines():
+    if line:
+        data = line.decode('utf-8')
+        if data.startswith('data: '):
+            event_data = json.loads(data[6:])
+            print(event_data)
+```
+
+</CodeGroup>
+
+**POST** `/api/v1/chat`
+
+Streams AI-generated responses with tool usage updates in real-time.
+
+### Request Body
+
+<ParamField body="prompt" type="string" required>
+  The user's message or query. Can be clinical questions, requests for patient data, or general medical inquiries.
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  Your workspace identifier. This isolates data and configurations per organization.
+</ParamField>
+
+<ParamField body="patient_id" type="string">
+  Patient identifier to provide context. When provided, the AI can access that patient's logs and lenses data.
+</ParamField>
+
+<ParamField body="session_id" type="string">
+  Session identifier for conversation continuity. If not provided, a new session is created.
+</ParamField>
+
+<ParamField body="user_profile_brief" type="string">
+  Brief description of the user (e.g., "Cardiologist at Stanford"). Helps personalize responses.
+</ParamField>
+
+<ParamField body="use_search" type="boolean" default="false">
+  Force the AI to use online search. Useful when you know you need current medical literature.
+</ParamField>
+
+<ParamField body="images" type="array">
+  Array of images for multi-modal queries (e.g., analyzing ECGs, X-rays).
+  
+  Each image object contains:
+  - `base64` (string): Base64-encoded image data
+  - `mime` (string): MIME type (e.g., 'image/jpeg', 'image/png')
+</ParamField>
+
+### Response Format
+
+The response is a stream of Server-Sent Events. Each event has:
+
+```
+event: eventType
+data: {"key": "value"}
+```
+
+### Event Types
+
+#### Core Events
+
+<ResponseField name="sessionInfo" type="object">
+  First event sent. Contains the session ID for tracking.
+  ```json
+  {
+    "sessionId": "abc123"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="contentStream" type="object">
+  Streams the AI's response in chunks.
+  ```json
+  {
+    "content": "Based on the patient's recent labs, "
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="statusUpdate" type="object">
+  Agent and tool status updates.
+  ```json
+  {
+    "status": "agent_started" | "agent_completed" | "processing"
+  }
+  ```
+</ResponseField>
+
+#### Tool Events
+
+<ResponseField name="toolUpdate" type="object">
+  Tool execution updates (search started, patient query in progress, etc.)
+  ```json
+  {
+    "toolName": "Online Search" | "Patient Logs Query" | "Knowledge Base",
+    "status": "started" | "in_progress" | "completed",
+    "message": "Searching medical literature..."
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="toolActivity" type="object">
+  Detailed tool operation updates.
+  ```json
+  {
+    "activity": "Searching for: hypertension guidelines 2024"
+  }
+  ```
+</ResponseField>
+
+#### Post-Completion Events
+
+These events are sent after the main response is complete:
+
+<ResponseField name="mentionedLogIds" type="array">
+  IDs of patient logs referenced in the response (for citation tracking).
+  ```json
+  ["log_123", "log_456"]
+  ```
+</ResponseField>
+
+<ResponseField name="citationsReceived" type="array">
+  All citations retrieved during the query.
+  ```json
+  [
+    {
+      "number": 1,
+      "text": "Patient's blood pressure reading from 2024-01-15",
+      "logId": "log_123"
+    }
+  ]
+  ```
+</ResponseField>
+
+<ResponseField name="knowledgeSourceMetadata" type="array">
+  Documents from knowledge base that were referenced.
+  ```json
+  [
+    {
+      "filename": "hypertension-protocol.pdf",
+      "page": 5
+    }
+  ]
+  ```
+</ResponseField>
+
+## Available Tools
+
+The AI can use three tools to answer queries:
+
+### 1. Online Search
+- **When used**: Medical literature queries, current guidelines, drug information
+- **Source**: Perplexity AI with medical/academic focus
+- **Returns**: Summarized content with source URLs
+
+### 2. Patient Logs Query
+- **When used**: Patient-specific questions when patient_id is provided
+- **Source**: Our Firestore database
+- **Returns**: Relevant logs with citations for compliance tracking
+
+### 3. Knowledge Base (RAG)
+- **When used**: Organization-specific protocols, internal documents
+- **Source**: Workspace documents in pgvector
+- **Returns**: Relevant excerpts with document/page references
+
+## Common Patterns
+
+### Basic Clinical Query
+```json
+{
+  "prompt": "What are the contraindications for metformin?",
+  "workspace_id": "ws_123",
+  "use_search": true
+}
+```
+
+### Patient-Specific Query
+```json
+{
+  "prompt": "Summarize this patient's cardiac history",
+  "workspace_id": "ws_123",
+  "patient_id": "pt_456"
+}
+```
+
+### Multi-Modal Query
+```json
+{
+  "prompt": "What does this ECG show?",
+  "workspace_id": "ws_123",
+  "images": [{
+    "base64": "iVBORw0KGgoAAAANS...",
+    "mime": "image/png"
+  }]
+}
+```
+
+### Continuing a Conversation
+```json
+{
+  "prompt": "What about the dosing for elderly patients?",
+  "workspace_id": "ws_123",
+  "session_id": "existing-session-123"
+}
+```
+
+## Error Handling
+
+<ResponseField name="errorOccurred" type="object">
+  Sent when errors occur during processing.
+  ```json
+  {
+    "error": "Tool timeout: Online Search took longer than 5 seconds"
+  }
+  ```
+</ResponseField>
+
+Common errors:
+- **Authentication**: Missing or invalid API key
+- **Validation**: Missing required fields (prompt, workspace_id)
+- **Timeouts**: Tool execution exceeding 5 seconds
+- **Stream timeout**: Total stream exceeding 60 seconds
+
+## Performance Tips
+
+1. **Session Management**: Reuse session_id for related queries to maintain context
+2. **Patient Context**: Always include patient_id when asking patient-specific questions
+3. **Force Search**: Use `use_search: true` when you need current medical literature
+4. **Image Optimization**: Compress images before base64 encoding to reduce payload size
+
+## Debugging
+
+<Tip>
+Check these CloudWatch log groups:
+- `/aws/lambda/chat-v2-stream` - Main streaming logs
+- `/aws/lambda/tool-execution` - Tool-specific logs
+- Look for `correlation_id` to trace a specific request
+</Tip>
+
+## Integration Example
+
+Here's how the mobile app typically uses this endpoint:
+
+```typescript
+// React Native example
+const streamChat = async (prompt: string, patientId?: string) => {
+  const response = await fetch(`${API_URL}/api/v1/chat`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      prompt,
+      workspace_id: currentWorkspace.id,
+      patient_id: patientId,
+      session_id: currentSession?.id
+    })
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const eventData = JSON.parse(line.slice(6));
+        handleEvent(eventData);
+      }
+    }
+  }
+};
+```
+
+## Related Endpoints
+
+- [Manual Lenses Entry](/api-reference/patient-data) - Direct access to lenses data
+- [Log Routes](/api-reference/logs) - Create and manage clinical logs
+- [Photo to Text](/api-reference/vision-logs) - Dedicated image analysis

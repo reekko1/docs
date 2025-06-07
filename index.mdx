@@ -1,71 +1,168 @@
 ---
-title: Introduction
-description: "Welcome to the home of narra documentation"
+title: Welcome to Narra
+description: "Internal API documentation for the Narra healthcare platform"
 ---
+This documentation is designed for **internal team members** working with Narra's backend APIs. Whether you're a newcomer getting familiar with our healthcare platform or a senior developer needing quick reference, you'll find everything you need here.
 
-<img
-  className="block dark:hidden"
-  src="/images/hero-light.png"
-  alt="Hero Light"
-/>
-<img
-  className="hidden dark:block"
-  src="/images/hero-dark.png"
-  alt="Hero Dark"
-/>
-
-## Setting up
-
-The first step to world-class documentation is setting up your editing environments.
+## Quick Navigation
 
 <CardGroup cols={2}>
   <Card
-    title="Edit Your Docs"
-    icon="pen-to-square"
-    href="https://mintlify.com/docs/quickstart"
-  >
-    Get your docs set up locally for easy development
-  </Card>
-  <Card
-    title="Preview Changes"
-    icon="image"
-    href="https://mintlify.com/docs/development"
-  >
-    Preview your changes before you push to make sure they're perfect
-  </Card>
-</CardGroup>
-
-## Make it yours
-
-Update your docs to your brand and add valuable content for the best user conversion.
-
-<CardGroup cols={2}>
-  <Card
-    title="Customize Style"
-    icon="palette"
-    href="https://mintlify.com/docs/settings/global"
-  >
-    Customize your docs to your company's colors and brands
-  </Card>
-  <Card
-    title="Reference APIs"
+    title="API Overview"
     icon="code"
-    href="https://mintlify.com/docs/api-playground/openapi"
+    href="/api-reference/introduction"
   >
-    Automatically generate endpoints from an OpenAPI spec
+    Start here for a comprehensive overview of our API structure, authentication, and key concepts like lenses and logs.
   </Card>
   <Card
-    title="Add Components"
-    icon="screwdriver-wrench"
-    href="https://mintlify.com/docs/content/components/accordions"
+    title="Core Features"
+    icon="stethoscope"
+    href="/api-reference/chat-v2"
   >
-    Build interactive features and designs to guide your users
-  </Card>
-  <Card
-    title="Get Inspiration"
-    icon="stars"
-    href="https://mintlify.com/customers"
-  >
-    Check out our showcase of our favorite documentation
+    Explore our main APIs: AI Clinical Assistant, Manual Lenses Entry, and Clinical Log Processing with real-time streaming.
   </Card>
 </CardGroup>
+
+## What Makes Narra Special
+
+### Multi-Modal Documentation
+Narra transforms how healthcare providers create clinical documentation:
+
+<CardGroup cols={3}>
+  <Card title="Voice to Text" icon="microphone" href="/api-reference/audio-transcriptions">
+    Speak clinical notes and get clean, editable text ready for logs
+  </Card>
+  <Card title="Photo to Text" icon="camera" href="/api-reference/vision-logs">
+    Photo lab sheets, monitors, or wounds and get structured clinical text
+  </Card>
+  <Card title="AI Assistant" icon="brain" href="/api-reference/chat-v2">
+    Intelligent assistant that understands medical context and helps with documentation
+  </Card>
+</CardGroup>
+
+### Key Platform Concepts
+
+<AccordionGroup>
+  <Accordion title="Lenses - Clinical Data Categories" icon="eye">
+    **Lenses** are how we organize patient clinical data:
+    - **Vitals** - Heart rate, blood pressure, temperature
+    - **Labs** - Laboratory results with values and units  
+    - **Medications** - Current and past medications
+    - **Problems** - Medical conditions and diagnoses
+    - **Plans** - Treatment protocols and next steps
+    - And more...
+  </Accordion>
+  
+  <Accordion title="Logs - Clinical Updates" icon="clipboard">
+    **Logs** are clinical updates that providers post throughout the day:
+    - Status updates and observations
+    - Team communication and alignment
+    - Patient progress tracking
+    - Chronological clinical record
+  </Accordion>
+  
+  <Accordion title="Review-First AI" icon="shield-check">
+    Our AI generates **draft content** that providers always review:
+    - Voice and image transcription create starting points
+    - Providers edit and approve before posting
+    - Human oversight ensures clinical accuracy
+    - No automatic posting without review
+  </Accordion>
+</AccordionGroup>
+
+## API Categories
+
+### Core Features
+The foundation of Narra's clinical platform:
+- **[AI Clinical Assistant](/api-reference/chat-v2)** - AI assistant with medical knowledge and patient context
+- **[Manual Lenses Entry](/api-reference/patient-data)** - Complete CRUD for all lenses data
+- **[Clinical Log Processing](/api-reference/log-stream)** - Real-time clinical log processing with AI categorization
+
+### Data Entry Support  
+Tools that make documentation effortless:
+- **[Dynamic Form Fields](/api-reference/meta-routes)** - Dynamic form fields for lenses data entry
+- **[File Upload & Storage](/api-reference/uploads)** - File management with video preview generation
+- **[Knowledge Upload](/api-reference/pdf-uploads)** - AI processing of PDFs, Word docs, and spreadsheets
+
+### AI Services
+Multi-modal AI for simplified documentation:
+- **[Photo to Text](/api-reference/vision-logs)** - Convert medical images to clinical text
+- **[Voice to Text](/api-reference/audio-transcriptions)** - Convert voice recordings to editable text
+
+### Administration
+Platform management and operations:
+- **[Push Notifications](/api-reference/fcm)** - Healthcare notifications with clinical templates
+- **[Subscription Management](/api-reference/revenuecat)** - Admin tools for billing and access management
+
+### Supporting Services
+Utility endpoints for platform operations:
+- **[Media Deletion](/api-reference/media)** - Complete cleanup of files and references
+
+## Getting Started
+
+<Steps>
+  <Step title="Understand the Platform">
+    Start with the [API Overview](/api-reference/introduction) to understand Narra's approach to healthcare documentation and our key concepts.
+  </Step>
+  
+  <Step title="Try Core Features">
+    Explore [AI Clinical Assistant](/api-reference/chat-v2) to see how our AI assistant works, then check [Manual Lenses Entry](/api-reference/patient-data) for clinical data management.
+  </Step>
+  
+  <Step title="Add Documentation Features">
+    Implement [Photo to Text](/api-reference/vision-logs) and [Voice to Text](/api-reference/audio-transcriptions) to enable multi-modal documentation in your apps.
+  </Step>
+  
+  <Step title="Integrate Platform Services">
+    Add [Push Notifications](/api-reference/fcm) for clinical alerts and explore admin endpoints for platform management.
+  </Step>
+</Steps>
+
+## Documentation Features
+
+Every endpoint in this documentation includes:
+
+✅ **Dual-level explanations** - Context for newcomers and technical details for experts  
+✅ **Complete examples** - cURL, Python, JavaScript, and mobile integration patterns  
+✅ **Error handling** - Comprehensive coverage of all error scenarios  
+✅ **Real workflows** - Actual integration patterns from our mobile and web apps  
+✅ **Performance tips** - Optimization guidance and debugging help  
+✅ **Healthcare context** - Clinical workflow integration and compliance considerations  
+
+## For Different Team Members
+
+<CardGroup cols={2}>
+  <Card title="Mobile Developers" icon="mobile" href="/api-reference/patient-data">
+    **Start with Manual Lenses Entry** for lenses management, then explore Photo/Voice to Text for documentation features
+  </Card>
+  <Card title="Web Developers" icon="desktop" href="/api-reference/chat-v2">
+    **Start with AI Clinical Assistant** for AI integration, then check Knowledge Upload for file handling
+  </Card>
+  <Card title="Backend Developers" icon="server" href="/api-reference/log-stream">
+    **Start with Clinical Log Processing** for understanding our processing pipeline, then explore all integrations
+  </Card>
+  <Card title="Product Managers" icon="chart-bar" href="/api-reference/introduction">
+    **Start with API Overview** to understand capabilities, then explore specific features
+  </Card>
+</CardGroup>
+
+## Need Help?
+
+<CardGroup cols={2}>
+  <Card
+    title="Technical Support"
+    icon="headset"
+    href="mailto:support@narralabs.ai"
+  >
+    Questions about API integration, authentication, or debugging? Reach out to the engineering team.
+  </Card>
+  <Card
+    title="Feature Requests"
+    icon="lightbulb"
+    href="mailto:support@narralabs.ai"
+  >
+    Ideas for new endpoints or improvements? We'd love to hear from you.
+  </Card>
+</CardGroup>
+
+Ready to build amazing healthcare experiences? Dive into the [API Overview](/api-reference/introduction) to get started!

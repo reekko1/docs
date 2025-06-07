@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
+    "title": "Narra Backend API",
+    "description": "Internal API documentation for the Narra healthcare platform",
     "license": {
       "name": "MIT"
     },
@@ -10,15 +10,72 @@
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "http://0.0.0.0:8001",
+      "description": "Development server"
     }
   ],
   "security": [
     {
-      "bearerAuth": []
+      "apiKeyAuth": []
     }
   ],
   "paths": {
+    "/fcm/test/{user_id}": {
+      "post": {
+        "summary": "Send Test Notification",
+        "description": "Send a test notification to verify FCM setup and token validity for a user",
+        "tags": ["FCM Push Notifications"],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "description": "User ID to send test notification to",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "user_123"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Test notification sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FCMTestResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No active devices found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid or missing API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "apiKeyAuth": []
+          }
+        ]
+      }
+    },
     "/plants": {
       "get": {
         "description": "Returns all plants from the system that the user has access to",
@@ -154,6 +211,53 @@
   },
   "components": {
     "schemas": {
+      "FCMTestResponse": {
+        "type": "object",
+        "properties": {
+          "success_count": {
+            "type": "integer",
+            "description": "Number of devices that successfully received the notification",
+            "example": 2
+          },
+          "failure_count": {
+            "type": "integer", 
+            "description": "Number of devices that failed to receive the notification",
+            "example": 0
+          },
+          "responses": {
+            "type": "array",
+            "description": "Detailed results for each device token",
+            "items": {
+              "$ref": "#/components/schemas/FCMDeviceResponse"
+            }
+          }
+        }
+      },
+      "FCMDeviceResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The FCM token (masked for security)",
+            "example": "device-token-1"
+          },
+          "success": {
+            "type": "boolean",
+            "description": "Whether the notification was successfully sent to this token",
+            "example": true
+          },
+          "message_id": {
+            "type": "string",
+            "description": "Firebase message ID for successful deliveries",
+            "example": "projects/narra-app/messages/test123"
+          },
+          "error": {
+            "type": "string",
+            "description": "Error message for failed deliveries (if applicable)",
+            "example": "Token not found"
+          }
+        }
+      },
       "Plant": {
         "required": [
           "name"
@@ -208,6 +312,11 @@
       }
     },
     "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      },
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer"

@@ -1,0 +1,506 @@
+---
+title: 'Media Deletion'
+description: 'Delete media files and clean up storage references'
+---
+The Media Deletion endpoint provides complete cleanup of media files from the Narra system. When a media item needs to be removed, this endpoint handles deletion from Google Cloud Storage, Firestore metadata cleanup, and removal of references from associated clinical logs - ensuring no orphaned data remains.
+
+<Info>
+**For newcomers**: Think of this as our "media cleanup service." When a doctor deletes a photo from a log or needs to remove uploaded files, this endpoint makes sure everything is completely cleaned up - the actual file in storage, the database record, and any references in logs.
+
+**For senior devs**: Comprehensive media deletion with GCS file removal, Firestore document cleanup, log attachment removal via ArrayRemove, automatic video preview cleanup, and atomic batch operations for data consistency.
+</Info>
+
+## Overview
+
+### Key Features
+- **Complete cleanup** - Removes files from GCS and all database references
+- **Video preview handling** - Automatically deletes associated video previews
+- **Log integration** - Removes media references from clinical logs
+- **Atomic operations** - Uses Firestore batch operations for consistency
+- **Error resilience** - Graceful handling of already-deleted files
+
+### Cleanup Process
+1. **Validate media exists** - Check Firestore metadata
+2. **Delete GCS files** - Remove original file and video preview (if applicable)
+3. **Clean Firestore** - Remove media document and log references
+4. **Atomic commit** - Ensure all operations succeed or fail together
+
+### Why We Built It This Way
+- **Complete cleanup** - Prevents orphaned files and broken references
+- **Video preview handling** - Automatically manages generated preview files
+- **Log integration** - Maintains data integrity in clinical documentation
+- **Batch operations** - Ensures consistency across multiple database updates
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+Media deletion requires API key authentication.
+
+## Endpoint
+
+### Delete Media Item
+
+<CodeGroup>
+
+```bash cURL
+curl -X DELETE https://api.narra.com/api/v1/media/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  -H "X-API-Key: your-api-key"
+```
+
+```python Python
+import requests
+
+# Delete media item completely
+response = requests.delete(
+    "https://api.narra.com/api/v1/media/a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    headers={"X-API-Key": "your-api-key"}
+)
+
+deletion_result = response.json()
+```
+
+```javascript JavaScript
+// Delete media from mobile app
+const deleteMedia = async (mediaId) => {
+  const response = await fetch(`/api/v1/media/${mediaId}`, {
+    method: 'DELETE',
+    headers: {
+      'X-API-Key': apiKey,
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to delete media: ${response.statusText}`);
+  }
+  
+  return response.json();
+};
+
+// Usage
+try {
+  const result = await deleteMedia('media-uuid-here');
+  console.log('Media deleted successfully:', result);
+} catch (error) {
+  console.error('Deletion failed:', error);
+}
+```
+
+</CodeGroup>
+
+**DELETE** `/media/{media_id}`
+
+Completely removes a media item from the system, including files, metadata, and references.
+
+#### Path Parameters
+
+<ParamField path="media_id" type="string" required>
+  The unique media ID (UUID) returned from the upload endpoint
+</ParamField>
+
+#### Response
+
+```json
+{
+  "message": "Media item deletion process completed.",
+  "mediaId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "gcsOriginalDeleted": true,
+  "gcsPreviewDeleted": true,
+  "firestoreMediaDocDeleted": true,
+  "firestoreLogAttachmentRemoved": true
+}
+```
+
+<ResponseField name="mediaId" type="string">
+  The ID of the deleted media item
+</ResponseField>
+
+<ResponseField name="gcsOriginalDeleted" type="boolean">
+  Whether the original file was successfully deleted from Google Cloud Storage
+</ResponseField>
+
+<ResponseField name="gcsPreviewDeleted" type="boolean">
+  Whether the video preview was deleted (only applicable for video files)
+</ResponseField>
+
+<ResponseField name="firestoreMediaDocDeleted" type="boolean">
+  Whether the media metadata document was removed from Firestore
+</ResponseField>
+
+<ResponseField name="firestoreLogAttachmentRemoved" type="boolean">
+  Whether the media reference was removed from the associated log (if any)
+</ResponseField>
+
+## Deletion Process
+
+### Files Cleaned Up
+
+<AccordionGroup>
+  <Accordion title="Google Cloud Storage Files">
+    **Original File**: `gs://bucket/workspace_id/patient_id/media_id/filename`
+    
+    **Video Preview** (for video files): `gs://bucket/workspace_id/patient_id/media_id/video_preview.jpg`
+    
+    Both files are permanently deleted from GCS and cannot be recovered.
+  </Accordion>
+  
+  <Accordion title="Firestore Metadata">
+    **Media Document**: Removed from `patient_media` collection
+    
+    ```json
+    // This entire document is deleted
+    {
+      "patient_id": "pt_123",
+      "workspace_id": "ws_456",
+      "storagePath": "gs://...",
+      "url": "https://...",
+      "filename": "photo.jpg",
+      "uploaded_by": "user_789"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Log References">
+    **Attachment Removal**: Media reference removed from log's `attachments` array
+    
+    ```json
+    // This specific attachment object is removed from the array
+    {
+      "mediaId": "media-uuid",
+      "type": "image/jpeg", 
+      "filename": "photo.jpg",
+      "url": "https://..."
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### Video File Special Handling
+
+For video files, the deletion process automatically handles:
+
+1. **Original video file** - The uploaded video file
+2. **Generated preview** - The auto-generated preview image (`video_preview.jpg`)
+3. **Metadata cleanup** - Both `url` and `videoPreviewUrl` references
+
+Example video deletion response:
+```json
+{
+  "message": "Media item deletion process completed.",
+  "mediaId": "video-uuid-123",
+  "gcsOriginalDeleted": true,
+  "gcsPreviewDeleted": true,  // Video preview was also deleted
+  "firestoreMediaDocDeleted": true,
+  "firestoreLogAttachmentRemoved": true
+}
+```
+
+## Error Handling
+
+<ResponseField name="404 Not Found">
+  Media item doesn't exist
+  ```json
+  {
+    "detail": "Media item with ID 'invalid-uuid' not found"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  Server configuration errors (missing environment variables, etc.)
+  ```json
+  {
+    "detail": "GCS_MEDIA_BUCKET environment variable not configured"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="503 Service Unavailable">
+  Google Cloud Storage or Firestore service issues
+  ```json
+  {
+    "detail": "Unable to connect to Google Cloud Storage"
+  }
+  ```
+</ResponseField>
+
+### Partial Failure Handling
+
+The deletion process is designed to be resilient to partial failures:
+
+- **Already deleted files** - GCS deletion gracefully handles files that don't exist
+- **Missing previews** - Video preview deletion succeeds even if preview wasn't generated
+- **Missing log references** - Log attachment removal succeeds if reference already removed
+- **Detailed status** - Response indicates which operations succeeded
+
+Example partial success:
+```json
+{
+  "message": "Media item deletion process completed.",
+  "mediaId": "uuid-123",
+  "gcsOriginalDeleted": true,
+  "gcsPreviewDeleted": false,  // No preview existed
+  "firestoreMediaDocDeleted": true,
+  "firestoreLogAttachmentRemoved": false  // No log reference existed
+}
+```
+
+## Integration Examples
+
+### Mobile App Media Management
+
+```typescript
+// React Native media deletion with confirmation
+import { Alert } from 'react-native';
+
+const MediaManager = {
+  async deleteMediaWithConfirmation(mediaId: string, filename: string) {
+    return new Promise((resolve, reject) => {
+      Alert.alert(
+        'Delete Media',
+        `Are you sure you want to delete "${filename}"? This action cannot be undone.`,
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+            onPress: () => resolve(false)
+          },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const result = await this.deleteMedia(mediaId);
+                resolve(result);
+              } catch (error) {
+                reject(error);
+              }
+            }
+          }
+        ]
+      );
+    });
+  },
+  
+  async deleteMedia(mediaId: string) {
+    const response = await fetch(`/api/v1/media/${mediaId}`, {
+      method: 'DELETE',
+      headers: { 'X-API-Key': apiKey }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Deletion failed: ${response.statusText}`);
+    }
+    
+    return response.json();
+  },
+  
+  async deleteMultipleMedia(mediaIds: string[]) {
+    const results = [];
+    
+    for (const mediaId of mediaIds) {
+      try {
+        const result = await this.deleteMedia(mediaId);
+        results.push({ mediaId, success: true, result });
+      } catch (error) {
+        results.push({ mediaId, success: false, error: error.message });
+      }
+    }
+    
+    return results;
+  }
+};
+
+// Usage
+await MediaManager.deleteMediaWithConfirmation('uuid-123', 'wound_photo.jpg');
+```
+
+### Log Media Cleanup
+
+```python
+# Clean up all media from a log entry
+async def cleanup_log_media(log_id: str, api_key: str):
+    """Remove all media attachments from a log"""
+    
+    # Get log data to find attached media
+    log_doc = firestore_client.collection('logs').document(log_id).get()
+    
+    if not log_doc.exists:
+        raise ValueError(f"Log {log_id} not found")
+    
+    log_data = log_doc.to_dict()
+    attachments = log_data.get('attachments', [])
+    
+    deleted_media = []
+    failed_deletions = []
+    
+    for attachment in attachments:
+        media_id = attachment.get('mediaId')
+        if not media_id:
+            continue
+            
+        try:
+            response = requests.delete(
+                f"https://api.narra.com/api/v1/media/{media_id}",
+                headers={"X-API-Key": api_key}
+            )
+            
+            if response.status_code == 200:
+                deleted_media.append(media_id)
+            else:
+                failed_deletions.append({
+                    'mediaId': media_id,
+                    'error': response.text
+                })
+                
+        except Exception as e:
+            failed_deletions.append({
+                'mediaId': media_id, 
+                'error': str(e)
+            })
+    
+    return {
+        'deleted': deleted_media,
+        'failed': failed_deletions,
+        'total_attachments': len(attachments)
+    }
+
+# Usage
+result = await cleanup_log_media('log_123', 'api-key-here')
+print(f"Deleted {len(result['deleted'])} media items")
+```
+
+### Batch Deletion Service
+
+```python
+# Service for batch media deletion with detailed reporting
+class MediaCleanupService:
+    def __init__(self, api_key: str, base_url: str):
+        self.api_key = api_key
+        self.base_url = base_url
+    
+    async def delete_patient_media(self, patient_id: str, older_than_days: int = None):
+        """Delete all media for a patient, optionally filtering by age"""
+        
+        # Query patient media from Firestore
+        query = firestore_client.collection('patient_media').where('patient_id', '==', patient_id)
+        
+        if older_than_days:
+            cutoff_date = datetime.now() - timedelta(days=older_than_days)
+            query = query.where('uploaded_at', '<', cutoff_date)
+        
+        media_docs = query.stream()
+        
+        deletion_results = []
+        
+        for doc in media_docs:
+            media_data = doc.to_dict()
+            media_id = doc.id
+            
+            try:
+                response = requests.delete(
+                    f"{self.base_url}/media/{media_id}",
+                    headers={"X-API-Key": self.api_key}
+                )
+                
+                deletion_results.append({
+                    'mediaId': media_id,
+                    'filename': media_data.get('filename'),
+                    'success': response.status_code == 200,
+                    'details': response.json() if response.status_code == 200 else response.text
+                })
+                
+            except Exception as e:
+                deletion_results.append({
+                    'mediaId': media_id,
+                    'filename': media_data.get('filename'),
+                    'success': False,
+                    'error': str(e)
+                })
+        
+        return deletion_results
+    
+    async def cleanup_orphaned_media(self):
+        """Find and delete media items with missing log references"""
+        
+        # This would require custom logic to detect orphaned media
+        # Based on your specific business rules
+        pass
+
+# Usage
+cleanup_service = MediaCleanupService('api-key', 'https://api.narra.com/api/v1')
+results = await cleanup_service.delete_patient_media('pt_123', older_than_days=90)
+```
+
+## Common Patterns
+
+### Safe Deletion with Validation
+
+```typescript
+// Validate before deletion
+const safeDeleteMedia = async (mediaId: string) => {
+  // Step 1: Check if media is referenced in recent logs
+  const isReferenced = await checkMediaReferences(mediaId);
+  
+  if (isReferenced) {
+    throw new Error('Cannot delete media: still referenced in recent logs');
+  }
+  
+  // Step 2: Perform deletion
+  const result = await deleteMedia(mediaId);
+  
+  // Step 3: Verify cleanup
+  if (!result.firestoreMediaDocDeleted) {
+    console.warn('Media document was not deleted from Firestore');
+  }
+  
+  return result;
+};
+```
+
+### Cleanup on Log Deletion
+
+```python
+# When deleting a log, clean up its media attachments
+async def delete_log_with_media(log_id: str):
+    # Get log attachments first
+    log_doc = firestore_client.collection('logs').document(log_id).get()
+    attachments = log_doc.to_dict().get('attachments', [])
+    
+    # Delete associated media
+    for attachment in attachments:
+        media_id = attachment.get('mediaId')
+        if media_id:
+            try:
+                await delete_media(media_id)
+            except Exception as e:
+                print(f"Failed to delete media {media_id}: {e}")
+    
+    # Delete the log document
+    firestore_client.collection('logs').document(log_id).delete()
+```
+
+## Performance Tips
+
+1. **Batch operations** - Delete multiple media items in parallel when possible
+2. **Graceful failure handling** - Continue processing even if some deletions fail
+3. **Cleanup verification** - Check response details to ensure complete cleanup
+4. **Log media carefully** - Consider whether media should be preserved for audit
+
+## Debugging
+
+<Tip>
+Check these for deletion issues:
+- **Response details**: Check which cleanup operations succeeded/failed
+- **GCS console**: Verify files are actually removed from storage
+- **Firestore console**: Confirm metadata documents are deleted
+- **Log attachments**: Verify references are removed from logs
+</Tip>
+
+## Related Endpoints
+
+- [Media Uploads](/api-reference/uploads) - Upload media files that can later be deleted
+- [Clinical Log Processing](/api-reference/log-stream) - Clinical logs that may reference media
+- [Photo to Text](/api-reference/vision-logs) - Analyze media before deletion

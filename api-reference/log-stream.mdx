@@ -1,0 +1,507 @@
+---
+title: 'Clinical Log Processing'
+description: 'Real-time streaming of clinical log processing with AI lens categorization'
+---
+The Log Stream endpoint processes clinical logs in real-time, streaming each step of the AI processing pipeline back to the client. When a provider posts a clinical update, this endpoint saves the log, categorizes it into relevant lenses using AI, and applies lens-specific processing - all while streaming progress updates via Server-Sent Events.
+
+<Info>
+**For newcomers**: Think of this as our "real-time log processor." When a doctor writes "Patient's BP is 140/90, continue Lisinopril," this endpoint saves it, figures out it contains vitals and medication info, then processes each piece accordingly - all while showing live progress.
+
+**For senior devs**: SSE streaming with comprehensive error handling, parallel lens processing via ThreadPoolExecutor, feature flags for gradual AI migration, and atomic Firestore operations with full audit trails.
+</Info>
+
+## Overview
+
+### Key Features
+- **Real-time streaming** - Server-Sent Events for live processing updates
+- **AI lens categorization** - GPT-4o intelligently categorizes logs into clinical data types
+- **Parallel processing** - Concurrent lens processing when feature flags enabled
+- **Comprehensive error handling** - Graceful degradation with detailed error streaming
+- **Feature flag support** - Gradual migration between OpenAI and Agno implementations
+
+### Processing Pipeline
+1. **Log Storage** - Saves raw log to Firestore with metadata
+2. **AI Categorization** - GPT-4o analyzes content and assigns relevant lenses
+3. **Lens Processing** - Specialized agents process each identified lens
+4. **Data Application** - Updates patient lenses data in Firestore
+5. **Completion** - Streams final success event
+
+### Why We Built It This Way
+- **Streaming over polling** - Better UX for showing progress on long-running AI operations
+- **Non-blocking saves** - Log gets saved immediately, AI processing happens after
+- **Parallel lens processing** - Multiple lens agents can run concurrently for speed
+- **Feature flags** - Allows safe rollout of new AI implementations
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+This endpoint requires API key authentication. Keys are managed per workspace.
+
+## Endpoint
+
+### Stream Log Processing
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/log/stream \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "log": "Patient reports chest pain 7/10, gave nitroglycerin SL, pain reduced to 3/10. BP 150/95, HR 88. Will monitor.",
+    "patient_id": "pt_123",
+    "user_id": "user_456", 
+    "workspace_id": "ws_789",
+    "media": ["https://storage.googleapis.com/bucket/ecg.jpg"]
+  }'
+```
+
+```python Python
+import requests
+import json
+
+# Stream log processing
+response = requests.post(
+    "https://api.narra.com/api/v1/log/stream",
+    headers={"X-API-Key": "your-api-key"},
+    json={
+        "log": "Patient's labs back: Hgb 8.2, started iron supplement",
+        "patient_id": "pt_123",
+        "user_id": "user_456",
+        "workspace_id": "ws_789",
+        "log_id": "optional-client-generated-id"
+    },
+    stream=True
+)
+
+for line in response.iter_lines():
+    if line:
+        data = line.decode('utf-8')
+        if data.startswith('data: '):
+            event_data = json.loads(data[6:])
+            print(f"Event: {event_data}")
+```
+
+</CodeGroup>
+
+**POST** `/log/stream`
+
+Processes a clinical log with real-time streaming of all processing steps.
+
+### Request Body
+
+<ParamField body="log" type="string" required>
+  The raw text content of the clinical log entry. Can contain any clinical information that needs to be processed.
+</ParamField>
+
+<ParamField body="patient_id" type="string" required>
+  The patient's document ID. Used to link the log and apply processed data to the correct patient.
+</ParamField>
+
+<ParamField body="user_id" type="string" required>
+  The user's document ID. Tracks who created this log for audit purposes.
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  The workspace document ID. Provides organizational context and data isolation.
+</ParamField>
+
+<ParamField body="media" type="array">
+  Optional array of media URLs (images, files) associated with this log entry.
+  
+  Example: `["https://storage.googleapis.com/bucket/xray.jpg", "https://storage.googleapis.com/bucket/lab-report.pdf"]`
+</ParamField>
+
+<ParamField body="log_id" type="string">
+  Optional log ID. If not provided, a new Firestore document ID will be auto-generated.
+</ParamField>
+
+### Response Format
+
+The response is a stream of Server-Sent Events. Each event has the structure:
+
+```
+event: eventType
+data: {"event_type": "eventName", "data": {...}}
+```
+
+### Event Types
+
+#### Core Processing Events
+
+<ResponseField name="processing_start" type="object">
+  Initial event confirming processing has begun.
+  ```json
+  {
+    "event_type": "processing_start",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123", 
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="log_saving_start" type="object">
+  Log storage to Firestore has started.
+  ```json
+  {
+    "event_type": "log_saving_start",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="log_saving_complete" type="object">
+  Log successfully saved to Firestore.
+  ```json
+  {
+    "event_type": "log_saving_complete", 
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+#### AI Categorization Events
+
+<ResponseField name="categorization_start" type="object">
+  AI lens categorization has started.
+  ```json
+  {
+    "event_type": "categorization_start",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="categorization_complete" type="object">
+  AI categorization finished with identified lenses.
+  ```json
+  {
+    "event_type": "categorization_complete",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123", 
+      "timestamp": "2024-01-15T10:30:00Z",
+      "categories": ["vitals", "medications", "problem_list"]
+    }
+  }
+  ```
+</ResponseField>
+
+#### Lens Processing Events
+
+<ResponseField name="agent_processing_start" type="object">
+  Individual lens agent processing has started.
+  ```json
+  {
+    "event_type": "agent_processing_start",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "lens": "vitals"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="agent_processing_complete" type="object">
+  Individual lens agent processing completed.
+  ```json
+  {
+    "event_type": "agent_processing_complete",
+    "data": {
+      "log_id": "log_abc123", 
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "lens": "vitals"
+    }
+  }
+  ```
+</ResponseField>
+
+#### Update Events
+
+<ResponseField name="lens_update_start" type="object">
+  Firestore lens data update started.
+  ```json
+  {
+    "event_type": "lens_update_start",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123", 
+      "timestamp": "2024-01-15T10:30:00Z",
+      "lens": "vitals"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="lens_update_complete" type="object">
+  Firestore lens data successfully updated.
+  ```json
+  {
+    "event_type": "lens_update_complete",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z", 
+      "lens": "vitals"
+    }
+  }
+  ```
+</ResponseField>
+
+#### Completion Events
+
+<ResponseField name="all_processing_complete" type="object">
+  All processing steps completed successfully.
+  ```json
+  {
+    "event_type": "all_processing_complete",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+#### Error Events
+
+<ResponseField name="log_saving_error" type="object">
+  Error occurred while saving log to Firestore.
+  ```json
+  {
+    "event_type": "log_saving_error",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "error": "Firestore connection timeout"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="categorization_error" type="object">
+  Error occurred during AI categorization.
+  ```json
+  {
+    "event_type": "categorization_error", 
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "error": "OpenAI API rate limit exceeded"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="agent_processing_error" type="object">
+  Error occurred during lens agent processing.
+  ```json
+  {
+    "event_type": "agent_processing_error",
+    "data": {
+      "log_id": "log_abc123",
+      "patient_id": "pt_123", 
+      "timestamp": "2024-01-15T10:30:00Z",
+      "lens": "vitals",
+      "error": "Agent timeout after 30 seconds"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="stream_error" type="object">
+  Stream-level error occurred.
+  ```json
+  {
+    "event_type": "stream_error",
+    "data": {
+      "timestamp": "2024-01-15T10:30:00Z",
+      "error": "Unexpected error in processing pipeline"
+    }
+  }
+  ```
+</ResponseField>
+
+## Available Lenses
+
+The AI categorization can identify these clinical data types:
+
+### Primary Lenses
+- **`vitals`** - Vital signs (blood pressure, heart rate, temperature, oxygen saturation)
+- **`lab_results`** - Laboratory test results and values
+- **`medication_summary`** - Medication discussions, changes, dosing
+- **`problem_list`** - Medical problems, diagnoses, conditions
+- **`imaging_reports`** - Imaging studies (X-ray, CT, MRI, ultrasound)
+- **`allergy_overview`** - Allergies, reactions, sensitivities
+- **`family_social_history`** - Family history or social factors
+- **`plan`** - Future actions, orders, recommendations, referrals
+
+### Fallback
+- **`Open router`** - Used when content doesn't clearly fit other categories
+
+## Processing Examples
+
+### Vital Signs Log
+```json
+{
+  "log": "Patient's vitals stable: BP 120/80, HR 72, temp 98.6F, O2 sat 99% on room air",
+  "patient_id": "pt_123",
+  "user_id": "user_456",
+  "workspace_id": "ws_789"
+}
+```
+
+**Expected categorization**: `["vitals"]`  
+**Processing**: Extracts BP, HR, temperature, O2 saturation and updates patient's vitals lens
+
+### Complex Multi-Lens Log
+```json
+{
+  "log": "Patient reports worsening shortness of breath. Started on Lasix 40mg daily. Labs show BNP elevated at 1200. Chest X-ray shows pulmonary edema. Plan: cardiology consult, daily weights.",
+  "patient_id": "pt_123", 
+  "user_id": "user_456",
+  "workspace_id": "ws_789"
+}
+```
+
+**Expected categorization**: `["problem_list", "medication_summary", "lab_results", "imaging_reports", "plan"]`  
+**Processing**: Updates multiple lenses concurrently with relevant extracted data
+
+## Error Handling
+
+### Graceful Degradation
+The system continues processing even if individual steps fail:
+
+1. **Log save fails** → Processing stops, error streamed
+2. **Categorization fails** → Defaults to "Open router", continues processing  
+3. **Individual lens fails** → Other lenses continue processing
+4. **Update fails** → Error logged, other updates continue
+
+### Retry Logic
+- **AI calls**: Exponential backoff, up to 3 retries
+- **Database operations**: Built-in Firebase retry mechanisms
+- **Feature flag fallback**: Can switch between OpenAI and Agno implementations
+
+### Common Errors
+- **401 Unauthorized**: Missing or invalid API key
+- **422 Unprocessable Entity**: Invalid request format or missing required fields
+- **503 Service Unavailable**: Database/Firebase connection issues
+- **429 Rate Limited**: AI service rate limits exceeded
+
+## Performance Tips
+
+1. **Parallel processing** - Enable feature flags for concurrent lens processing
+2. **Batch logs** - Group related logs when possible to reduce API overhead
+3. **Media optimization** - Compress media files before including URLs
+4. **Connection reuse** - Maintain persistent connections for multiple requests
+
+## Feature Flags
+
+The system supports gradual migration between AI implementations:
+
+```typescript
+// Feature flags affect which AI system processes each lens
+const flags = {
+  use_agno_categorization: false,    // Use OpenAI for categorization
+  use_agno_vitals: true,            // Use Agno for vitals processing
+  use_agno_problems: false,         // Use OpenAI for problem list
+  use_parallel_processing: true     // Enable concurrent lens processing
+};
+```
+
+## Integration Example
+
+Here's how the mobile app typically uses this endpoint:
+
+```typescript
+// Stream log processing with progress updates
+const processLog = async (logData: LogRequest) => {
+  const response = await fetch(`${API_URL}/log/stream`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(logData)
+  });
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const eventData = JSON.parse(line.slice(6));
+        handleProcessingEvent(eventData);
+      }
+    }
+  }
+};
+
+const handleProcessingEvent = (event: any) => {
+  switch (event.event_type) {
+    case 'processing_start':
+      showProgressIndicator('Processing log...');
+      break;
+    case 'categorization_complete':
+      showLensCategories(event.data.categories);
+      break;
+    case 'agent_processing_complete':
+      updateLensProgress(event.data.lens, 'complete');
+      break;
+    case 'all_processing_complete':
+      hideProgressIndicator();
+      refreshPatientData();
+      break;
+    case 'stream_error':
+      showError(event.data.error);
+      break;
+  }
+};
+```
+
+## Debugging
+
+<Tip>
+Check these CloudWatch log groups:
+- `/aws/lambda/log-stream-processor` - Main streaming logs
+- `/aws/lambda/lens-agents` - Individual lens processing logs
+- Look for `log_id` and `correlation_id` to trace specific requests
+- Monitor feature flag configurations in CloudWatch dashboards
+</Tip>
+
+## Related Endpoints
+
+- [AI Clinical Assistant](/api-reference/chat-v2) - AI assistant that can query processed log data
+- [Manual Lenses Entry](/api-reference/patient-data) - Direct access to lens data created by log processing
+- [Photo to Text](/api-reference/vision-logs) - Process images mentioned in log media
