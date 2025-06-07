@@ -98,8 +98,8 @@
     }
   },
   "logo": {
-    "light": "/logo/Narra_light.png",
-    "dark": "/logo/Narra_dark.png"
+    "light": "/logo/narra-logo.png",
+    "dark": "/logo/narra-logo-darkmode.png"
   },
   "navbar": {
     "links": [
