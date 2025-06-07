@@ -1,8 +1,8 @@
 ---
 title: 'Quick Start Guide'
-description: 'Get up and running with Narra backend APIs in minutes'
+description: 'Get up and running with NarraOS backend APIs in minutes'
 ---
-This guide will get you started with Narra's backend APIs quickly. Perfect for internal team members who need to integrate with our healthcare platform APIs.
+This guide will get you started with NarraOS's backend APIs quickly. Perfect for internal team members who need to integrate with our healthcare platform APIs.
 
 ## Prerequisites
 
@@ -348,7 +348,7 @@ curl -H "X-API-Key: $NARRA_API_KEY" "$NARRA_API_URL/fcm/test/user_123"
 
 ### Error Handling
 ```javascript
-async function callNarraAPI(endpoint, options = {}) {
+async function callNarraOSAPI(endpoint, options = {}) {
   try {
     const response = await fetch(`${baseURL}${endpoint}`, {
       ...options,
@@ -372,7 +372,7 @@ async function callNarraAPI(endpoint, options = {}) {
     
     return response.json();
   } catch (error) {
-    console.error(`Narra API error for ${endpoint}:`, error);
+    console.error(`NarraOS API error for ${endpoint}:`, error);
     throw error;
   }
 }
@@ -441,4 +441,4 @@ await handleSSEStream(logStreamResponse, {
 - **Technical Support**: Reach out to support@narralabs.ai with specific error messages
 - **Feature Requests**: Let us know what additional endpoints or features would help your development
 
-You're ready to start building with Narra! 🚀
+You're ready to start building with NarraOS! 🚀

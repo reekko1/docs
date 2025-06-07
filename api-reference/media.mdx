@@ -2,7 +2,7 @@
 title: 'Media Deletion'
 description: 'Delete media files and clean up storage references'
 ---
-The Media Deletion endpoint provides complete cleanup of media files from the Narra system. When a media item needs to be removed, this endpoint handles deletion from Google Cloud Storage, Firestore metadata cleanup, and removal of references from associated clinical logs - ensuring no orphaned data remains.
+The Media Deletion endpoint provides complete cleanup of media files from the NarraOS system. When a media item needs to be removed, this endpoint handles deletion from Google Cloud Storage, Firestore metadata cleanup, and removal of references from associated clinical logs - ensuring no orphaned data remains.
 
 <Info>
 **For newcomers**: Think of this as our "media cleanup service." When a doctor deletes a photo from a log or needs to remove uploaded files, this endpoint makes sure everything is completely cleaned up - the actual file in storage, the database record, and any references in logs.
