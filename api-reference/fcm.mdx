@@ -59,10 +59,7 @@ curl -X POST https://api.narra.com/api/v1/fcm/tokens/register \
     "device_name": "Dr. Smith iPhone",
     "device_id": "device_unique_id",
     "app_version": "1.2.3",
-    "platform_data": {
-      "bundle_id": "com.narra.app",
-      "environment": "production"
-    }
+    "ios_bundle_id": "com.narra.app"
   }'
 ```
 
@@ -80,10 +77,7 @@ response = requests.post(
         "device_name": "Dr. Smith iPhone",
         "device_id": "device_unique_id",
         "app_version": "1.2.3",
-        "platform_data": {
-            "bundle_id": "com.narra.app",
-            "environment": "production"
-        }
+        "ios_bundle_id": "com.narra.app"
     }
 )
 ```
@@ -93,7 +87,7 @@ response = requests.post(
 const registerFCMToken = async (fcmToken) => {
   const deviceInfo = await getDeviceInfo();
   
-  const response = await fetch('/fcm/tokens/register', {
+  const response = await fetch('/api/v1/fcm/tokens/register', {
     method: 'POST',
     headers: {
       'X-API-Key': apiKey,
@@ -106,10 +100,8 @@ const registerFCMToken = async (fcmToken) => {
       device_name: deviceInfo.deviceName,
       device_id: deviceInfo.uniqueId,
       app_version: VersionInfo.appVersion,
-      platform_data: {
-        bundle_id: Bundle.bundleIdentifier,
-        environment: __DEV__ ? 'development' : 'production'
-      }
+      ios_bundle_id: Platform.OS === 'ios' ? Bundle.bundleIdentifier : undefined,
+      android_package_name: Platform.OS === 'android' ? Bundle.bundleIdentifier : undefined
     })
   });
 };
@@ -117,7 +109,7 @@ const registerFCMToken = async (fcmToken) => {
 
 </CodeGroup>
 
-**POST** `/fcm/tokens/register`
+**POST** `/api/v1/fcm/tokens/register`
 
 Registers or updates an FCM token for a user's device.
 
@@ -147,19 +139,25 @@ Registers or updates an FCM token for a user's device.
   Application version for debugging purposes
 </ParamField>
 
-<ParamField body="platform_data" type="object">
-  Platform-specific metadata:
-  - **iOS**: `bundle_id`, `environment`
-  - **Android**: `package_name`, `environment`
-  - **Web**: `domain`, `browser_info`
+<ParamField body="ios_bundle_id" type="string">
+  iOS application bundle identifier (e.g., "com.narra.app")
+</ParamField>
+
+<ParamField body="android_package_name" type="string">
+  Android application package name (e.g., "com.narra.app")
+</ParamField>
+
+<ParamField body="web_push_key" type="string">
+  Web Push VAPID key for web applications
 </ParamField>
 
 #### Response
 
 ```json
 {
-  "message": "FCM token registered successfully",
-  "masked_token": "fcm_token...last_chars"
+  "success": true,
+  "token_id": "token_abc123",
+  "action": "created"
 }
 ```
 
@@ -191,13 +189,13 @@ response = requests.delete(
 
 </CodeGroup>
 
-**DELETE** `/fcm/tokens`
+**DELETE** `/api/v1/fcm/tokens`
 
 Removes an FCM token when user logs out or uninstalls the app.
 
 ### List User Tokens
 
-**GET** `/fcm/tokens/{user_id}`
+**GET** `/api/v1/fcm/tokens/{user_id}`
 
 Returns all active FCM tokens for a user (tokens are masked for security).
 
@@ -205,15 +203,17 @@ Returns all active FCM tokens for a user (tokens are masked for security).
 
 ```json
 {
+  "user_id": "user_123",
+  "token_count": 2,
   "tokens": [
     {
-      "masked_token": "fcm_abc123...xyz789",
+      "id": "token_abc123",
+      "token": "fcm_abc123...xyz789",
       "device_type": "ios",
       "device_name": "Dr. Smith iPhone",
       "app_version": "1.2.3",
       "created_at": "2024-01-15T10:30:00Z",
-      "is_active": true,
-      "failure_count": 0
+      "is_active": true
     }
   ]
 }
@@ -230,21 +230,17 @@ curl -X POST https://api.narra.com/api/v1/fcm/send \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "recipient": {
-      "type": "user_id",
-      "value": "user_123"
-    },
-    "notification": {
-      "title": "Critical Lab Alert",
-      "body": "Patient John Doe has critical lab values requiring immediate attention.",
-      "image": "https://example.com/alert-icon.png",
-      "click_action": "/patients/pt_456/labs"
-    },
+    "recipient_type": "user_id",
+    "recipient_value": "user_123",
+    "title": "Critical Lab Alert",
+    "body": "Patient John Doe has critical lab values requiring immediate attention.",
+    "image_url": "https://example.com/alert-icon.png",
     "data": {
       "patient_id": "pt_456",
       "priority": "high",
       "lab_type": "critical"
     },
+    "click_action": "/patients/pt_456/labs",
     "priority": "high"
   }'
 ```
@@ -255,15 +251,11 @@ response = requests.post(
     "https://api.narra.com/api/v1/fcm/send",
     headers={"X-API-Key": "your-api-key"},
     json={
-        "recipient": {
-            "type": "user_id",
-            "value": "doctor_456"
-        },
-        "notification": {
-            "title": "Critical Lab Alert",
-            "body": "Patient has critical troponin levels",
-            "click_action": "/patients/pt_123/labs"
-        },
+        "recipient_type": "user_id",
+        "recipient_value": "doctor_456",
+        "title": "Critical Lab Alert",
+        "body": "Patient has critical troponin levels",
+        "click_action": "/patients/pt_123/labs",
         "data": {
             "patient_id": "pt_123",
             "priority": "high"
@@ -275,33 +267,50 @@ response = requests.post(
 
 </CodeGroup>
 
-**POST** `/fcm/send`
+**POST** `/api/v1/fcm/send`
 
 Sends a notification using flexible recipient targeting.
 
 #### Request Body
 
-<ParamField body="recipient" type="object" required>
-  Recipient targeting:
-  - `type: "user_id"` - Send to all devices for a user
-  - `type: "email"` - Find user by email and send to their devices  
-  - `type: "tokens"` - Send directly to comma-separated FCM tokens
+<ParamField body="recipient_type" type="string" required>
+  Recipient targeting type: `user_id`, `email`, or `tokens`
 </ParamField>
 
-<ParamField body="notification" type="object" required>
-  Notification content:
-  - `title` (string) - Notification title
-  - `body` (string) - Notification body text
-  - `image` (string, optional) - Image URL
-  - `click_action` (string, optional) - Deep link destination
+<ParamField body="recipient_value" type="string" required>
+  The value based on recipient_type (user ID, email address, or comma-separated tokens)
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Notification title (max 50 chars recommended)
+</ParamField>
+
+<ParamField body="body" type="string" required>
+  Notification body text (max 200 chars recommended)
+</ParamField>
+
+<ParamField body="image_url" type="string">
+  Image URL to display in notification
+</ParamField>
+
+<ParamField body="click_action" type="string">
+  Action when notification is tapped (deep link)
 </ParamField>
 
 <ParamField body="data" type="object">
   Custom data payload sent with notification
 </ParamField>
 
-<ParamField body="priority" type="string">
-  Notification priority: `high`, `normal`, or `low`
+<ParamField body="priority" type="string" default="high">
+  Notification priority: `high` or `normal`
+</ParamField>
+
+<ParamField body="badge" type="integer">
+  Badge number for iOS app icon
+</ParamField>
+
+<ParamField body="sound" type="string" default="default">
+  Notification sound file
 </ParamField>
 
 ### Template-Based Notifications
@@ -313,18 +322,15 @@ curl -X POST https://api.narra.com/api/v1/fcm/send-from-template \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
-    "template": "lab_results",
-    "recipient": {
-      "type": "user_id", 
-      "value": "doctor_123"
-    },
-    "data": {
+    "template_type": "lab_results",
+    "recipient_type": "user_id", 
+    "recipient_value": "doctor_123",
+    "template_data": {
       "patient_name": "John Doe",
       "lab_type": "Troponin",
-      "result": "12.5",
-      "normal_range": "< 0.04",
-      "is_critical": true,
-      "patient_id": "pt_456"
+      "result_summary": "Elevated troponin levels detected",
+      "lab_id": "lab_999",
+      "is_critical": true
     }
   }'
 ```
@@ -335,18 +341,15 @@ response = requests.post(
     "https://api.narra.com/api/v1/fcm/send-from-template",
     headers={"X-API-Key": "your-api-key"},
     json={
-        "template": "lab_results",
-        "recipient": {
-            "type": "user_id",
-            "value": "doctor_123"
-        },
-        "data": {
+        "template_type": "lab_results",
+        "recipient_type": "user_id",
+        "recipient_value": "doctor_123",
+        "template_data": {
             "patient_name": "Jane Smith",
             "lab_type": "Hemoglobin",
-            "result": "6.8",
-            "normal_range": "12.0-15.5",
-            "is_critical": True,
-            "patient_id": "pt_789"
+            "result_summary": "Critical hemoglobin level: 6.8",
+            "lab_id": "lab_456",
+            "is_critical": True
         }
     }
 )
@@ -354,7 +357,7 @@ response = requests.post(
 
 </CodeGroup>
 
-**POST** `/fcm/send-from-template`
+**POST** `/api/v1/fcm/send-from-template`
 
 Sends notifications using predefined healthcare templates.
 
@@ -380,10 +383,9 @@ Sends notifications using predefined healthcare templates.
     {
       "patient_name": "Jane Smith", 
       "lab_type": "Troponin",
-      "result": "12.5",
-      "normal_range": "< 0.04",
-      "is_critical": true,
-      "patient_id": "pt_456"
+      "result_summary": "Elevated troponin levels detected",
+      "lab_id": "lab_999",
+      "is_critical": true
     }
     ```
     **Auto-priority**: Critical results automatically use high priority
@@ -398,7 +400,7 @@ Sends notifications using predefined healthcare templates.
       "dosage": "1 tablet",
       "frequency": "daily",
       "time": "08:00",
-      "patient_id": "pt_789"
+      "medication_id": "med_456"
     }
     ```
   </Accordion>
@@ -429,11 +431,38 @@ Sends notifications using predefined healthcare templates.
     }
     ```
   </Accordion>
+  
+  <Accordion title="task_completed">
+    **Use case**: Task completion notifications
+    ```json
+    {
+      "task_title": "Review patient chart",
+      "completed_by": "Nurse Johnson",
+      "task_id": "task_789"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="custom">
+    **Use case**: Fully customizable notifications
+    ```json
+    {
+      "title": "Emergency Alert",
+      "body": "Code Blue in ICU Room 5",
+      "data": {
+        "alert_type": "emergency",
+        "location": "ICU-5"
+      },
+      "priority": "high",
+      "click_action": "OPEN_EMERGENCY"
+    }
+    ```
+  </Accordion>
 </AccordionGroup>
 
 ### Test Notification
 
-**POST** `/fcm/test/{user_id}`
+**POST** `/api/v1/fcm/test/{user_id}`
 
 Sends a test notification to verify FCM setup and token validity.
 
@@ -487,7 +516,7 @@ response = requests.post(
 
 </CodeGroup>
 
-**POST** `/fcm/send-batch`
+**POST** `/api/v1/fcm/send-batch`
 
 Sends multiple notifications efficiently (max 100 per batch).
 
@@ -495,7 +524,7 @@ Sends multiple notifications efficiently (max 100 per batch).
 
 ### Get Template Documentation
 
-**GET** `/fcm/templates/schemas`
+**GET** `/api/v1/fcm/templates/schemas`
 
 Returns comprehensive documentation for all notification templates.
 
@@ -518,12 +547,29 @@ Returns comprehensive documentation for all notification templates.
 ## Error Handling
 
 <ResponseField name="400 Bad Request">
-  Invalid template data or missing required fields
+  Invalid template type or recipient data
+  ```json
+  {
+    "detail": "No schema found for template type: unknown_template"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="422 Unprocessable Entity">
+  Template data validation failed
   ```json
   {
     "detail": {
-      "template": "lab_results",
-      "errors": ["patient_name is required", "lab_type is required"]
+      "message": "Template data validation failed",
+      "errors": [
+        {
+          "type": "missing",
+          "loc": ["patient_name"],
+          "msg": "Field required",
+          "input": {}
+        }
+      ],
+      "template_type": "lab_results"
     }
   }
   ```
@@ -591,7 +637,7 @@ class FCMManager {
   async registerToken(userId: string, token: string) {
     const deviceInfo = await getDeviceInfo();
     
-    await fetch('/fcm/tokens/register', {
+    await fetch('/api/v1/fcm/tokens/register', {
       method: 'POST',
       headers: {
         'X-API-Key': apiKey,
@@ -612,7 +658,7 @@ class FCMManager {
     const token = await messaging().getToken();
     
     // Remove token on logout
-    await fetch('/fcm/tokens', {
+    await fetch('/api/v1/fcm/tokens', {
       method: 'DELETE',
       headers: {
         'X-API-Key': apiKey,
@@ -687,10 +733,10 @@ class ClinicalNotificationService:
 
 <Tip>
 Check these for notification issues:
-- **Token registration**: Verify tokens are active in `/fcm/tokens/{user_id}`
+- **Token registration**: Verify tokens are active in `/api/v1/fcm/tokens/{user_id}`
 - **Firebase console**: Check FCM delivery reports
-- **Template validation**: Use `/fcm/templates/schemas` for field requirements
-- **Test notifications**: Use `/fcm/test/{user_id}` to verify setup
+- **Template validation**: Use `/api/v1/fcm/templates/schemas` for field requirements
+- **Test notifications**: Use `/api/v1/fcm/test/{user_id}` to verify setup
 </Tip>
 
 ## Related Endpoints

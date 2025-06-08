@@ -1,0 +1,767 @@
+---
+title: 'Chat V2 SSE Events'
+description: 'Complete guide to Server-Sent Events for the AI Clinical Assistant'
+---
+This comprehensive guide documents all Server-Sent Events (SSE) emitted by the Chat V2 endpoint, helping frontend developers build responsive, real-time interfaces for the AI Clinical Assistant.
+
+<Info>
+**For Frontend Developers**: This guide covers every SSE event type you'll encounter when integrating the Chat V2 streaming endpoint. Use these event handlers to build rich, real-time UI experiences that show users exactly what the AI is doing.
+</Info>
+
+## Overview
+
+The Chat V2 endpoint streams responses using Server-Sent Events (SSE), providing real-time updates about:
+- AI response generation
+- Tool execution progress
+- Patient data retrieval
+- Online search results
+- Citation tracking
+- Error handling
+
+## SSE Event Format
+
+All events follow the standard SSE format:
+
+```
+event: eventType
+data: {"source": "eventSource", "content": "eventContent", ...}
+```
+
+## Complete Event Reference
+
+### 1. sessionInfo
+
+**Purpose**: Provides a unique session identifier for tracking the conversation
+
+**When Emitted**: Once at the very beginning of each request
+
+**Event Structure**:
+```javascript
+event: sessionInfo
+data: {
+  "sessionId": "1d635f7b-0fb5-4889-b61b-812b2792d8fb"
+}
+```
+
+**Frontend Usage**:
+```javascript
+// Track session for debugging/analytics
+eventSource.addEventListener('sessionInfo', (event) => {
+  const data = JSON.parse(event.data);
+  console.log(`Session started: ${data.sessionId}`);
+  analytics.track('chat_session_started', { sessionId: data.sessionId });
+});
+```
+
+### 2. statusUpdate
+
+**Purpose**: Tracks the overall status of the AI agent
+
+**When Emitted**: 
+- At the start of processing (`status: "started"`)
+- At successful completion (`status: "completed"`)
+- On errors (`status: "error"`)
+
+**Event Structure**:
+```javascript
+event: statusUpdate
+data: {
+  "source": "main_agent",
+  "status": "started" | "completed" | "error",
+  "message": "Agent started processing" | "Agent completed successfully" | "Error message"
+}
+```
+
+**Frontend Usage**:
+```javascript
+eventSource.addEventListener('statusUpdate', (event) => {
+  const data = JSON.parse(event.data);
+  
+  switch(data.status) {
+    case 'started':
+      showLoadingIndicator();
+      break;
+    case 'completed':
+      hideLoadingIndicator();
+      enableUserInput();
+      break;
+    case 'error':
+      showErrorMessage(data.message);
+      enableUserInput();
+      break;
+  }
+});
+```
+
+### 3. contentStream
+
+**Purpose**: Streams the actual text content of AI responses in real-time chunks
+
+**When Emitted**: Continuously during response generation
+
+**Sources**: 
+- `main_agent` - Primary AI responses
+- `perform_online_search` - Search result processing (includes raw `<think>` tags and reasoning)
+
+**Event Structure**:
+```javascript
+event: contentStream
+data: {
+  "source": "main_agent" | "perform_online_search",
+  "content": "Hello" | "!" | " As" | " your"  // Text chunks
+}
+```
+
+**Frontend Usage**:
+```javascript
+let responseText = '';
+let searchThinking = '';
+
+eventSource.addEventListener('contentStream', (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.source === 'main_agent') {
+    // Append to main response
+    responseText += data.content;
+    updateChatBubble(responseText);
+  } else if (data.source === 'perform_online_search') {
+    // Handle raw search processing (contains <think> tags and reasoning)
+    searchThinking += data.content;
+    // Note: This is raw content, use onlineSearchAgentFinalResponse for clean copy-paste version
+    showSearchProgress(searchThinking);
+  }
+});
+```
+
+### 4. toolUpdate
+
+**Purpose**: Provides detailed progress updates during tool execution
+
+**When Emitted**: Throughout tool execution lifecycle
+
+**Tools & Steps**:
+```javascript
+// perform_online_search
+- step: "started" → "Tool 'perform_online_search' started"
+- step: "preparing_agent" → "Initializing search agent..."
+- step: "searching" → "Conducting online research for: [query]..."
+- step: "completed" → "Tool 'perform_online_search' completed"
+
+// query_patient_logs
+- step: "started" → "Tool 'query_patient_logs' started"
+- step: "fetching_patients" → "Retrieving patients from workspace..."
+- step: "fetching_patients" → "Found X patients in workspace"
+- step: "matching_patients" → "Mapping patient identifiers to internal IDs..."
+- step: "matching_patients" → "Matching patient X/Y: [name] (MRN: [mrn])"
+- step: "matching_patients" → "Successfully matched X unique patient(s)"
+- step: "fetching_logs" → "Retrieving patient logs..."
+- step: "processing_logs" → "Processing and formatting log data..."
+- step: "preparing_citations" → "Preparing X citations for reference..."
+- step: "completed" → "Tool 'query_patient_logs' completed"
+
+// patient_context
+- step: "loading_patient" → "Loading patient context for ID: [id]"
+- step: "patient_not_found" → "Patient not found for ID: [id]"
+
+// search (knowledge base)
+- step: "started" → "Tool 'search' started"
+- step: "completed" → "Tool 'search' completed"
+```
+
+**Event Structure**:
+```javascript
+event: toolUpdate
+data: {
+  "source": "perform_online_search" | "query_patient_logs" | "patient_context" | "search",
+  "step": "started" | "searching" | "fetching_patients" | etc.,
+  "content": "Human-readable progress message"
+}
+```
+
+**Frontend Usage**:
+```javascript
+eventSource.addEventListener('toolUpdate', (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Show tool-specific progress
+  switch(data.source) {
+    case 'perform_online_search':
+      updateSearchProgress(data.step, data.content);
+      break;
+    case 'query_patient_logs':
+      updatePatientDataProgress(data.step, data.content);
+      break;
+    case 'patient_context':
+      if (data.step === 'patient_not_found') {
+        showPatientNotFoundWarning(data.content);
+      }
+      break;
+    case 'search':
+      updateKnowledgeSearchProgress(data.step, data.content);
+      break;
+  }
+  
+  // Log all tool activity
+  addToActivityLog(`[${data.source}] ${data.content}`);
+});
+```
+
+### 5. toolActivity
+
+**Purpose**: Highlights important tool results or milestones
+
+**When Emitted**: When tools complete significant actions
+
+**Event Structure**:
+```javascript
+event: toolActivity
+data: {
+  "source": "query_patient_logs",
+  "content": "✓ Found 1 match(es) for Dora (MRN: 1111)"
+}
+```
+
+**Frontend Usage**:
+```javascript
+eventSource.addEventListener('toolActivity', (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Show success notification
+  showNotification({
+    type: 'success',
+    message: data.content,
+    icon: '✓'
+  });
+});
+```
+
+### 6. citationsReceived
+
+**Purpose**: Provides citations/references for the AI's response
+
+**When Emitted**: After tools complete their data gathering
+
+**Sources**:
+- `perform_online_search` - Web URLs
+- `query_patient_logs` - Log IDs from patient records
+
+**Event Structure**:
+```javascript
+// From online search
+event: citationsReceived
+data: {
+  "source": "perform_online_search",
+  "citations": [
+    "https://www.drugs.com/dosage/ibuprofen.html",
+    "https://www.mayoclinic.org/drugs-supplements/ibuprofen-oral-route"
+  ]
+}
+
+// From patient logs
+event: citationsReceived
+data: {
+  "source": "query_patient_logs",
+  "citations": [
+    "WQhufzVqXPzi0BQYjEM5",  // Log IDs
+    "HNw0TvgKHl3UxeIxO6Ti",
+    "IKatSBTVgY1DMKmthi00"
+  ]
+}
+```
+
+**Frontend Usage**:
+```javascript
+let webCitations = [];
+let logCitations = [];
+
+eventSource.addEventListener('citationsReceived', (event) => {
+  const data = JSON.parse(event.data);
+  
+  if (data.source === 'perform_online_search') {
+    webCitations = data.citations;
+    renderWebReferences(webCitations);
+  } else if (data.source === 'query_patient_logs') {
+    logCitations = data.citations;
+    renderPatientLogReferences(logCitations);
+  }
+});
+```
+
+### 7. mentionedLogIds
+
+**Purpose**: Identifies specific log IDs that are directly referenced in the AI's response
+
+**When Emitted**: After the AI mentions specific patient logs in its response
+
+**Event Structure**:
+```javascript
+event: mentionedLogIds
+data: {
+  "source": "query_patient_logs",
+  "citations": [
+    "IKatSBTVgY1DMKmthi00",  // Only logs specifically mentioned
+    "Yn2jB3bNcFXtqGEVuEGE"
+  ]
+}
+```
+
+**Frontend Usage**:
+```javascript
+eventSource.addEventListener('mentionedLogIds', (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Highlight mentioned logs differently from all citations
+  data.citations.forEach(logId => {
+    highlightLogInUI(logId);
+    preloadLogDetails(logId); // Prefetch for quick access
+  });
+});
+```
+
+### 8. onlineSearchAgentFinalResponse
+
+**Purpose**: Provides a clean, copy-paste ready version of the online search response
+
+**When Emitted**: After online search completes processing
+
+**Use Case**: This event contains the final, properly formatted search response that users can easily copy and paste. While `contentStream` provides the raw thinking process (including `<think>` tags), this event gives you the clean, formatted output ready for sharing or documentation.
+
+**Event Structure**:
+```javascript
+event: onlineSearchAgentFinalResponse
+data: {
+  "source": "perform_online_search",
+  "content": "The maximum recommended dose of ibuprofen...\n\n> _Generated with NarraOS AI - https://narralabs.ai/_"
+}
+```
+
+**Frontend Usage**:
+```javascript
+eventSource.addEventListener('onlineSearchAgentFinalResponse', (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Store clean, copy-paste ready response
+  storeCleanSearchResponse(data.content);
+  
+  // Enable copy-to-clipboard functionality
+  enableCopyButton(data.content);
+  
+  // Show formatted response in a separate panel
+  displayFormattedResponse(data.content);
+  
+  // Mark search as complete
+  markSearchAsComplete();
+});
+```
+
+### 9. knowledgeSourceMetadata
+
+**Purpose**: Provides detailed metadata about knowledge base documents used in the response
+
+**When Emitted**: After knowledge base search completes and sources are identified
+
+**Event Structure**:
+```javascript
+event: knowledgeSourceMetadata
+data: {
+  "sourceTool": "search",
+  "references": [
+    {
+      "filename": "UrgentCare Center Standard Policy.pdf",
+      "page_number": null,
+      "publicUrl": "https://storage.googleapis.com/...pdf",
+      "content_preview": "Page 1 of 8 \nUrgent Care Center \nStandard Policy...",
+      "grounding": null
+    },
+    {
+      "filename": "Clinical Guidelines 2025.pdf", 
+      "page_number": 15,
+      "publicUrl": "https://storage.googleapis.com/...pdf",
+      "content_preview": "Treatment protocols for emergency...",
+      "grounding": "Section 4.2 - Emergency Protocols"
+    }
+  ]
+}
+```
+
+**Frontend Usage**:
+```javascript
+eventSource.addEventListener('knowledgeSourceMetadata', (event) => {
+  const data = JSON.parse(event.data);
+  
+  // Render source documents panel
+  renderSourceDocuments(data.references);
+  
+  // Create downloadable citations
+  data.references.forEach(ref => {
+    addCitation({
+      title: ref.filename,
+      url: ref.publicUrl,
+      preview: ref.content_preview,
+      page: ref.page_number,
+      context: ref.grounding
+    });
+  });
+  
+  // Enable source verification
+  enableSourceVerification(data.references);
+});
+```
+
+## Complete Implementation Example
+
+Here's a comprehensive example showing how to handle all SSE events:
+
+```javascript
+class ChatV2EventHandler {
+  constructor() {
+    this.sessionId = null;
+    this.responseText = '';
+    this.isProcessing = false;
+    this.citations = { web: [], logs: [] };
+    this.mentionedLogs = [];
+  }
+
+  connect(prompt, workspaceId, patientId = null) {
+    const params = new URLSearchParams({
+      prompt,
+      workspace_id: workspaceId,
+      ...(patientId && { patient_id: patientId })
+    });
+
+    const eventSource = new EventSource(
+      `/chat_v2?${params}`,
+      {
+        headers: {
+          'X-API-Key': 'your-api-key'
+        }
+      }
+    );
+
+    // Session tracking
+    eventSource.addEventListener('sessionInfo', (event) => {
+      const data = JSON.parse(event.data);
+      this.sessionId = data.sessionId;
+      console.log(`Chat session: ${this.sessionId}`);
+    });
+
+    // Status updates
+    eventSource.addEventListener('statusUpdate', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleStatusUpdate(data);
+    });
+
+    // Content streaming
+    eventSource.addEventListener('contentStream', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleContentStream(data);
+    });
+
+    // Tool updates
+    eventSource.addEventListener('toolUpdate', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleToolUpdate(data);
+    });
+
+    // Tool activity
+    eventSource.addEventListener('toolActivity', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleToolActivity(data);
+    });
+
+    // Citations
+    eventSource.addEventListener('citationsReceived', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleCitations(data);
+    });
+
+    // Mentioned logs
+    eventSource.addEventListener('mentionedLogIds', (event) => {
+      const data = JSON.parse(event.data);
+      this.mentionedLogs = data.citations;
+      this.highlightMentionedLogs();
+    });
+
+    // Search final response
+    eventSource.addEventListener('onlineSearchAgentFinalResponse', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleSearchComplete(data);
+    });
+
+    // Knowledge source metadata
+    eventSource.addEventListener('knowledgeSourceMetadata', (event) => {
+      const data = JSON.parse(event.data);
+      this.handleKnowledgeMetadata(data);
+    });
+
+    // Error handling
+    eventSource.onerror = (error) => {
+      console.error('SSE Error:', error);
+      this.cleanup();
+      eventSource.close();
+    };
+
+    return eventSource;
+  }
+
+  handleStatusUpdate(data) {
+    switch(data.status) {
+      case 'started':
+        this.isProcessing = true;
+        this.showLoadingState();
+        break;
+      case 'completed':
+        this.isProcessing = false;
+        this.hideLoadingState();
+        this.finalizeResponse();
+        break;
+      case 'error':
+        this.isProcessing = false;
+        this.showError(data.message);
+        break;
+    }
+  }
+
+  handleContentStream(data) {
+    if (data.source === 'main_agent') {
+      this.responseText += data.content;
+      this.updateChatUI(this.responseText);
+    }
+    // Optionally handle search thinking process
+  }
+
+  handleToolUpdate(data) {
+    // Update progress indicators based on tool and step
+    this.updateProgressBar(data.source, data.step, data.content);
+  }
+
+  handleToolActivity(data) {
+    // Show success notifications
+    this.showNotification('success', data.content);
+  }
+
+  handleCitations(data) {
+    if (data.source === 'perform_online_search') {
+      this.citations.web = data.citations;
+    } else if (data.source === 'query_patient_logs') {
+      this.citations.logs = data.citations;
+    }
+    this.renderCitations();
+  }
+
+  handleSearchComplete(data) {
+    // Store clean, formatted response for copy-paste
+    this.cleanSearchResponse = data.content;
+    this.enableCopyButton(data.content);
+    this.updateSearchStatus('complete', data.content);
+  }
+
+  handleKnowledgeMetadata(data) {
+    // Display knowledge base sources
+    this.renderSourceDocuments(data.references);
+    this.enableSourceVerification(data.references);
+  }
+
+  // UI update methods
+  showLoadingState() { /* ... */ }
+  hideLoadingState() { /* ... */ }
+  updateChatUI(text) { /* ... */ }
+  updateProgressBar(tool, step, message) { /* ... */ }
+  showNotification(type, message) { /* ... */ }
+  renderCitations() { /* ... */ }
+  highlightMentionedLogs() { /* ... */ }
+  showError(message) { /* ... */ }
+  finalizeResponse() { /* ... */ }
+  cleanup() { /* ... */ }
+}
+
+// Usage
+const chatHandler = new ChatV2EventHandler();
+const eventSource = chatHandler.connect(
+  "What are the patient's recent vitals?",
+  "workspace_123",
+  "patient_456"
+);
+```
+
+## Event Flow Patterns
+
+### Basic Query Flow
+```
+1. sessionInfo → Session ID assigned
+2. statusUpdate (started) → Processing begins
+3. contentStream (main_agent) → Response streams
+4. statusUpdate (completed) → Processing ends
+```
+
+### Online Search Flow
+```
+1. sessionInfo → Session ID assigned
+2. statusUpdate (started) → Processing begins
+3. toolUpdate (perform_online_search, started) → Search begins
+4. toolUpdate (perform_online_search, preparing_agent) → Initializing
+5. toolUpdate (perform_online_search, searching) → Searching web
+6. contentStream (perform_online_search) → Search thinking process
+7. citationsReceived → Web citations provided
+8. onlineSearchAgentFinalResponse → Complete search result
+9. toolUpdate (perform_online_search, completed) → Search ends
+10. contentStream (main_agent) → Final response streams
+11. statusUpdate (completed) → Processing ends
+```
+
+### Patient Query Flow
+```
+1. sessionInfo → Session ID assigned
+2. statusUpdate (started) → Processing begins
+3. toolUpdate (query_patient_logs, started) → Query begins
+4. toolUpdate (query_patient_logs, fetching_patients) → Loading patients
+5. toolUpdate (query_patient_logs, matching_patients) → Finding matches
+6. toolActivity → Success confirmation
+7. toolUpdate (query_patient_logs, fetching_logs) → Getting logs
+8. toolUpdate (query_patient_logs, processing_logs) → Processing data
+9. toolUpdate (query_patient_logs, preparing_citations) → Preparing refs
+10. toolUpdate (query_patient_logs, completed) → Query ends
+11. contentStream (main_agent) → Response streams
+12. mentionedLogIds → Specific logs referenced
+13. citationsReceived → All relevant log IDs
+14. statusUpdate (completed) → Processing ends
+```
+
+### Knowledge Base Search Flow
+```
+1. sessionInfo → Session ID assigned
+2. statusUpdate (started) → Processing begins
+3. toolUpdate (search, started) → Knowledge search begins
+4. toolUpdate (search, completed) → Knowledge search ends
+5. contentStream (main_agent) → Response streams with document insights
+6. knowledgeSourceMetadata → Source documents with metadata
+7. statusUpdate (completed) → Processing ends
+```
+
+## Best Practices
+
+### 1. Always Handle Errors
+```javascript
+eventSource.onerror = (error) => {
+  console.error('SSE connection error:', error);
+  // Implement reconnection logic
+  // Show user-friendly error message
+  // Clean up resources
+};
+```
+
+### 2. Aggregate Content Streams
+```javascript
+let fullResponse = '';
+let buffer = '';
+
+eventSource.addEventListener('contentStream', (event) => {
+  const data = JSON.parse(event.data);
+  buffer += data.content;
+  
+  // Update UI with throttling for performance
+  throttledUpdate(buffer);
+});
+```
+
+### 3. Track Tool Progress
+```javascript
+const toolProgress = {
+  'perform_online_search': { status: 'idle', steps: [] },
+  'query_patient_logs': { status: 'idle', steps: [] }
+};
+
+eventSource.addEventListener('toolUpdate', (event) => {
+  const data = JSON.parse(event.data);
+  toolProgress[data.source].status = data.step;
+  toolProgress[data.source].steps.push(data);
+  updateProgressUI(toolProgress);
+});
+```
+
+### 4. Properly Close Connections
+```javascript
+// Clean up when done
+function closeConnection() {
+  if (eventSource && eventSource.readyState !== EventSource.CLOSED) {
+    eventSource.close();
+  }
+}
+
+// Call on component unmount or navigation
+window.addEventListener('beforeunload', closeConnection);
+```
+
+## Debugging Tips
+
+### Enable Detailed Logging
+```javascript
+// Log all events for debugging
+['sessionInfo', 'statusUpdate', 'contentStream', 'toolUpdate', 
+ 'toolActivity', 'citationsReceived', 'mentionedLogIds', 
+ 'onlineSearchAgentFinalResponse', 'knowledgeSourceMetadata'].forEach(eventType => {
+  eventSource.addEventListener(eventType, (event) => {
+    console.log(`[${eventType}]`, JSON.parse(event.data));
+  });
+});
+```
+
+### Monitor Connection State
+```javascript
+setInterval(() => {
+  console.log('SSE State:', {
+    readyState: eventSource.readyState,
+    readyStateText: ['CONNECTING', 'OPEN', 'CLOSED'][eventSource.readyState]
+  });
+}, 5000);
+```
+
+## Common Issues & Solutions
+
+### Issue: Events Stop Streaming
+**Solution**: Implement heartbeat detection and reconnection
+```javascript
+let lastEventTime = Date.now();
+const TIMEOUT = 30000; // 30 seconds
+
+// Reset timer on any event
+eventSource.onmessage = () => {
+  lastEventTime = Date.now();
+};
+
+// Check for timeout
+setInterval(() => {
+  if (Date.now() - lastEventTime > TIMEOUT) {
+    console.warn('SSE timeout detected, reconnecting...');
+    eventSource.close();
+    reconnect();
+  }
+}, 5000);
+```
+
+### Issue: Duplicate Events
+**Solution**: Track processed events by session
+```javascript
+const processedEvents = new Set();
+
+function handleEvent(eventType, data) {
+  const eventId = `${this.sessionId}-${eventType}-${Date.now()}`;
+  if (!processedEvents.has(eventId)) {
+    processedEvents.add(eventId);
+    // Process event
+  }
+}
+```
+
+## Summary
+
+The Chat V2 SSE implementation provides comprehensive real-time updates for:
+- 🔄 **9 distinct event types** for different aspects of processing
+- 📊 **6 different sources** indicating which component is active
+- 📝 **Streaming content** with chunk-by-chunk delivery
+- 🛠️ **Tool progress** with detailed step tracking
+- 📚 **Citation management** for both web and patient data
+- 📄 **Knowledge base metadata** with source document references
+- ⚡ **Real-time status** updates throughout the process
+
+Use this guide to build responsive, informative interfaces that keep users engaged and informed throughout their interaction with the AI Clinical Assistant.

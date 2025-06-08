@@ -115,7 +115,7 @@ const analyzeImages = async (images, patientId) => {
 
 </CodeGroup>
 
-**POST** `/vision-logs`
+**POST** `/api/v1/vision-logs`
 
 Analyzes one or more medical images to generate clinical documentation.
 
@@ -349,7 +349,7 @@ const capturePhotoForLog = async (patientId: string) => {
     name: asset.fileName,
   } as any);
   
-  const uploadResponse = await fetch('/uploads/media', {
+  const uploadResponse = await fetch('/api/v1/uploads/media', {
     method: 'POST',
     headers: { 'X-API-Key': apiKey },
     body: mediaFormData,
@@ -366,7 +366,7 @@ const capturePhotoForLog = async (patientId: string) => {
   } as any);
   visionFormData.append('patient_id', patientId);
   
-  const visionResponse = await fetch('/vision-logs', {
+  const visionResponse = await fetch('/api/v1/vision-logs', {
     method: 'POST',
     headers: { 'X-API-Key': apiKey },
     body: visionFormData,
@@ -385,7 +385,7 @@ const capturePhotoForLog = async (patientId: string) => {
     };
     
     // Post to log stream
-    const logResponse = await fetch('/log/stream', {
+    const logResponse = await fetch('/api/v1/log/stream', {
       method: 'POST',
       headers: { 
         'X-API-Key': apiKey,

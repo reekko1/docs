@@ -142,7 +142,7 @@ Choose the path that matches what you're building:
     const { doc_id } = await uploadResponse.json();
     
     // Poll for processing completion
-    const statusResponse = await fetch(`/pdf-uploads/${doc_id}/status`, {
+    const statusResponse = await fetch(`/pdf-uploads/pdf-uploads/${doc_id}/status`, {
       headers: { 'X-API-Key': apiKey }
     });
     ```

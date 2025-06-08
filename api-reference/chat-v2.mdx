@@ -2,7 +2,7 @@
 title: 'AI Clinical Assistant'
 description: 'AI-powered clinical assistant with real-time streaming'
 ---
-The Chat V2 endpoint is the heart of NarraOS's AI assistant. It's our GPT-4-powered orchestrator that helps providers get clinical insights, search medical literature, query patient logs, and access our knowledge base - all through a conversational interface.
+The Chat V2 endpoint is the heart of NarraOS's AI assistant. It's our gpt-4o-powered orchestrator that helps providers get clinical insights, search medical literature, query patient logs, and access our knowledge base - all through a conversational interface.
 
 <Info>
 **For newcomers**: Think of this as our "smart assistant" that can pull up patient lenses data, search PubMed, or help interpret clinical information. It streams responses in real-time like ChatGPT.
@@ -16,7 +16,7 @@ The Chat V2 endpoint is the heart of NarraOS's AI assistant. It's our GPT-4-powe
 - **Multi-modal support** - Accepts text prompts with optional images
 - **Real-time streaming** - Server-Sent Events (SSE) for immediate feedback
 - **Tool orchestration** - Intelligently uses search, patient data, and knowledge base
-- **Session continuity** - Maintains conversation context across messages
+- **Session continuity** - Maintains conversation context across messages (stored in PostgreSQL)
 - **Citation tracking** - Tracks which patient data was accessed for compliance
 
 ### Why We Built It This Way
@@ -40,7 +40,7 @@ All requests require API key authentication. Keys are managed per workspace.
 <CodeGroup>
 
 ```bash cURL
-curl -X POST https://api.narra.com/api/v1/chat \
+curl -X POST https://api.narra.com/api/v1/chat_v2 \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -57,7 +57,7 @@ import json
 
 # SSE streaming example
 response = requests.post(
-    "https://api.narra.com/api/v1/chat",
+    "https://api.narra.com/api/v1/chat_v2",
     headers={"X-API-Key": "your-api-key"},
     json={
         "prompt": "Summarize this patient's recent labs",
@@ -78,7 +78,7 @@ for line in response.iter_lines():
 
 </CodeGroup>
 
-**POST** `/api/v1/chat`
+**POST** `/api/v1/chat_v2`
 
 Streams AI-generated responses with tool usage updates in real-time.
 
@@ -301,10 +301,12 @@ Common errors:
 ## Debugging
 
 <Tip>
-Check these CloudWatch log groups:
-- `/aws/lambda/chat-v2-stream` - Main streaming logs
-- `/aws/lambda/tool-execution` - Tool-specific logs
-- Look for `correlation_id` to trace a specific request
+Check these for debugging:
+- Session storage: PostgreSQL table `agno_chat_v2_sessions`
+- CloudWatch log groups:
+  - `/aws/lambda/chat-v2-stream` - Main streaming logs
+  - `/aws/lambda/tool-execution` - Tool-specific logs
+- Look for `correlation_id` or `session_id` to trace specific requests
 </Tip>
 
 ## Integration Example
@@ -314,7 +316,7 @@ Here's how the mobile app typically uses this endpoint:
 ```typescript
 // React Native example
 const streamChat = async (prompt: string, patientId?: string) => {
-  const response = await fetch(`${API_URL}/api/v1/chat`, {
+  const response = await fetch(`${API_URL}/api/v1/chat_v2`, {
     method: 'POST',
     headers: {
       'X-API-Key': apiKey,

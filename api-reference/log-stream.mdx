@@ -14,14 +14,14 @@ The Log Stream endpoint processes clinical logs in real-time, streaming each ste
 
 ### Key Features
 - **Real-time streaming** - Server-Sent Events for live processing updates
-- **AI lens categorization** - GPT-4o intelligently categorizes logs into clinical data types
+- **AI lens categorization** - AI intelligently categorizes logs into clinical data types
 - **Parallel processing** - Concurrent lens processing when feature flags enabled
 - **Comprehensive error handling** - Graceful degradation with detailed error streaming
 - **Feature flag support** - Gradual migration between OpenAI and Agno implementations
 
 ### Processing Pipeline
 1. **Log Storage** - Saves raw log to Firestore with metadata
-2. **AI Categorization** - GPT-4o analyzes content and assigns relevant lenses
+2. **AI Categorization** - AI model analyzes content and assigns relevant lenses
 3. **Lens Processing** - Specialized agents process each identified lens
 4. **Data Application** - Updates patient lenses data in Firestore
 5. **Completion** - Streams final success event
@@ -87,7 +87,7 @@ for line in response.iter_lines():
 
 </CodeGroup>
 
-**POST** `/log/stream`
+**POST** `/api/v1/log/stream`
 
 Processes a clinical log with real-time streaming of all processing steps.
 
@@ -124,7 +124,6 @@ Processes a clinical log with real-time streaming of all processing steps.
 The response is a stream of Server-Sent Events. Each event has the structure:
 
 ```
-event: eventType
 data: {"event_type": "eventName", "data": {...}}
 ```
 
@@ -339,8 +338,10 @@ data: {"event_type": "eventName", "data": {...}}
   {
     "event_type": "stream_error",
     "data": {
-      "timestamp": "2024-01-15T10:30:00Z",
-      "error": "Unexpected error in processing pipeline"
+      "log_id": "log_abc123",
+      "patient_id": "pt_123",
+      "error": "An unexpected error occurred during stream generation.",
+      "detail": "Connection timeout"
     }
   }
   ```
@@ -353,7 +354,7 @@ The AI categorization can identify these clinical data types:
 ### Primary Lenses
 - **`vitals`** - Vital signs (blood pressure, heart rate, temperature, oxygen saturation)
 - **`lab_results`** - Laboratory test results and values
-- **`medication_summary`** - Medication discussions, changes, dosing
+- **`medications`** - Medication discussions, changes, dosing
 - **`problem_list`** - Medical problems, diagnoses, conditions
 - **`imaging_reports`** - Imaging studies (X-ray, CT, MRI, ultrasound)
 - **`allergy_overview`** - Allergies, reactions, sensitivities
@@ -388,7 +389,7 @@ The AI categorization can identify these clinical data types:
 }
 ```
 
-**Expected categorization**: `["problem_list", "medication_summary", "lab_results", "imaging_reports", "plan"]`  
+**Expected categorization**: `["problem_list", "medications", "lab_results", "imaging_reports", "plan"]`  
 **Processing**: Updates multiple lenses concurrently with relevant extracted data
 
 ## Error Handling
@@ -425,11 +426,18 @@ The system supports gradual migration between AI implementations:
 
 ```typescript
 // Feature flags affect which AI system processes each lens
+// These are set via environment variables (defaults shown)
 const flags = {
-  use_agno_categorization: false,    // Use OpenAI for categorization
-  use_agno_vitals: true,            // Use Agno for vitals processing
-  use_agno_problems: false,         // Use OpenAI for problem list
-  use_parallel_processing: true     // Enable concurrent lens processing
+  USE_AGNO_CATEGORIZATION: true,    // Use Agno for categorization
+  USE_AGNO_VITALS: true,            // Use Agno for vitals processing
+  USE_AGNO_PROBLEMS: true,          // Use Agno for problem list
+  USE_AGNO_MEDICATIONS: true,       // Use Agno for medications
+  USE_AGNO_LABS: true,              // Use Agno for lab results
+  USE_AGNO_IMAGING: true,           // Use Agno for imaging
+  USE_AGNO_ALLERGIES: true,         // Use Agno for allergies
+  USE_AGNO_HISTORY: true,           // Use Agno for family/social history
+  USE_AGNO_PLANS: true,             // Use Agno for plans
+  USE_PARALLEL_PROCESSING: true     // Enable concurrent lens processing
 };
 ```
 

@@ -28,11 +28,10 @@ The Patient Data endpoint manages all of NarraOS's **lenses data** - the structu
 ## Authentication
 
 ```bash
-# No explicit auth headers - handled at API gateway
-# User identification via user_id in request body
+X-API-Key: your-api-key
 ```
 
-Patient data endpoints rely on gateway-level authentication. User tracking happens via required `user_id` fields.
+All patient data endpoints require API key authentication.
 
 ## Collection Types (Lenses)
 
@@ -76,6 +75,7 @@ Each collection follows a consistent structure:
 
 ```bash cURL
 curl -X POST https://api.narra.com/api/v1/patient-data/pt_123/vitals \
+  -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
     "vital_type": "heart_rate",
@@ -92,6 +92,7 @@ import requests
 # Add a vital sign
 response = requests.post(
     "https://api.narra.com/api/v1/patient-data/pt_123/vitals",
+    headers={"X-API-Key": "your-api-key"},
     json={
         "vital_type": "blood_pressure",
         "value_systolic": 120,
@@ -107,7 +108,7 @@ entry_id = response.json()["entry_id"]
 
 </CodeGroup>
 
-**POST** `/patient-data/{patient_id}/{collection_type}`
+**POST** `/api/v1/patient-data/{patient_id}/{collection_type}`
 
 Creates a new manual entry in the specified collection.
 
@@ -214,7 +215,8 @@ The request body varies by collection type but always includes:
 <CodeGroup>
 
 ```bash cURL
-curl https://api.narra.com/api/v1/patient-data/pt_123/vitals
+curl https://api.narra.com/api/v1/patient-data/pt_123/vitals \
+  -H "X-API-Key: your-api-key"
 ```
 
 ```python Python
@@ -222,7 +224,8 @@ import requests
 
 # Get all vitals for a patient
 response = requests.get(
-    "https://api.narra.com/api/v1/patient-data/pt_123/vitals"
+    "https://api.narra.com/api/v1/patient-data/pt_123/vitals",
+    headers={"X-API-Key": "your-api-key"}
 )
 
 vitals_data = response.json()
@@ -230,7 +233,7 @@ vitals_data = response.json()
 
 </CodeGroup>
 
-**GET** `/patient-data/{patient_id}/{collection_type}`
+**GET** `/api/v1/patient-data/{patient_id}/{collection_type}`
 
 Retrieves all documents for a patient's collection type.
 
@@ -260,7 +263,7 @@ Retrieves all documents for a patient's collection type.
 
 ### Get Specific Document
 
-**GET** `/patient-data/{patient_id}/{collection_type}/{doc_id}`
+**GET** `/api/v1/patient-data/{patient_id}/{collection_type}/{doc_id}`
 
 Retrieves a specific document with enriched user details.
 
@@ -287,6 +290,7 @@ Retrieves a specific document with enriched user details.
 
 ```bash cURL
 curl -X PUT https://api.narra.com/api/v1/patient-data/pt_123/vitals/uuid-123/entries/abc123 \
+  -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
     "value": 75,
@@ -298,6 +302,7 @@ curl -X PUT https://api.narra.com/api/v1/patient-data/pt_123/vitals/uuid-123/ent
 # Edit a specific vital sign reading
 response = requests.put(
     "https://api.narra.com/api/v1/patient-data/pt_123/vitals/uuid-123/entries/abc123",
+    headers={"X-API-Key": "your-api-key"},
     json={
         "value": 75,
         "unit": "BPM",
@@ -308,7 +313,7 @@ response = requests.put(
 
 </CodeGroup>
 
-**PUT** `/patient-data/{patient_id}/{collection_type}/{doc_id}/entries/{entry_id}`
+**PUT** `/api/v1/patient-data/{patient_id}/{collection_type}/{doc_id}/entries/{entry_id}`
 
 Edits a specific entry within a document's results or history array.
 
@@ -339,6 +344,7 @@ These fields cannot be edited:
 
 ```bash cURL
 curl -X PUT https://api.narra.com/api/v1/patient-data/pt_123/medications/uuid-123/top \
+  -H "X-API-Key: your-api-key" \
   -H "Content-Type: application/json" \
   -d '{
     "medication": "Lisinopril 10mg",
@@ -351,6 +357,7 @@ curl -X PUT https://api.narra.com/api/v1/patient-data/pt_123/medications/uuid-12
 # Edit medication name and status
 response = requests.put(
     "https://api.narra.com/api/v1/patient-data/pt_123/medications/uuid-123/top",
+    headers={"X-API-Key": "your-api-key"},
     json={
         "medication": "Lisinopril 10mg",
         "status": "active", 
@@ -361,7 +368,7 @@ response = requests.put(
 
 </CodeGroup>
 
-**PUT** `/patient-data/{patient_id}/{collection_type}/{doc_id}/top`
+**PUT** `/api/v1/patient-data/{patient_id}/{collection_type}/{doc_id}/top`
 
 Edits document-level fields and creates audit trail entries.
 
@@ -469,7 +476,11 @@ vitals = [
 ]
 
 for vital in vitals:
-    response = requests.post(f"/patient-data/{patient_id}/vitals", json=vital)
+    response = requests.post(
+        f"https://api.narra.com/api/v1/patient-data/{patient_id}/vitals",
+        headers={"X-API-Key": "your-api-key"},
+        json=vital
+    )
 ```
 
 ### Editing with Audit Trail
@@ -487,7 +498,11 @@ edit = {
     "user_id": "user_789"  # Different user making edit
 }
 
-response = requests.put(f"/patient-data/{patient_id}/medications/{doc_id}/top", json=edit)
+response = requests.put(
+    f"https://api.narra.com/api/v1/patient-data/{patient_id}/medications/{doc_id}/top",
+    headers={"X-API-Key": "your-api-key"},
+    json=edit
+)
 ```
 
 ## Performance Tips
@@ -506,7 +521,10 @@ Here's how the mobile app typically manages patient data:
 const addVital = async (patientId: string, vitalData: VitalInput) => {
   const response = await fetch(`${API_URL}/patient-data/${patientId}/vitals`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({
       ...vitalData,
       user_id: currentUser.id,
@@ -522,7 +540,10 @@ const addVital = async (patientId: string, vitalData: VitalInput) => {
 const editVital = async (patientId: string, docId: string, entryId: string, updates: any) => {
   return fetch(`${API_URL}/patient-data/${patientId}/vitals/${docId}/entries/${entryId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({
       ...updates,
       user_id: currentUser.id

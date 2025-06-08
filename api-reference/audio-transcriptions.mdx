@@ -93,7 +93,7 @@ const transcribeAudio = async (audioUri) => {
 
 </CodeGroup>
 
-**POST** `/audio-transcriptions`
+**POST** `/api/v1/audio-transcriptions`
 
 Transcribes an audio recording into clean, readable text suitable for clinical documentation.
 
@@ -116,7 +116,7 @@ Transcribes an audio recording into clean, readable text suitable for clinical d
 ```json
 {
   "transcription_text": "Patient reports decreased pain in left knee, now 3 out of 10. Ambulating without assistance. Wound healing well with no signs of infection.",
-  "model_used": "whisper-large-v3-turbo"
+  "model_used": "whisper-large-v3"
 }
 ```
 
@@ -125,7 +125,7 @@ Transcribes an audio recording into clean, readable text suitable for clinical d
 </ResponseField>
 
 <ResponseField name="model_used" type="string">
-  The AI model used for transcription (always "whisper-large-v3-turbo")
+  The AI model used for transcription (currently "whisper-large-v3")
 </ResponseField>
 
 ## Transcription Examples
@@ -177,6 +177,7 @@ Plan for today includes continuing the current antibiotic regimen. Patient will 
 - **Clear speech** - Normal speaking pace and volume
 - **Good microphone** - Built-in phone microphones work well
 - **Short segments** - 1-3 minutes per recording for best accuracy
+- **Language** - Currently optimized for English language transcription
 
 ## Error Handling
 
@@ -239,7 +240,7 @@ const VoiceToLogWorkflow = () => {
     });
     
     try {
-      const response = await fetch('/audio-transcriptions', {
+      const response = await fetch('/api/v1/audio-transcriptions', {
         method: 'POST',
         headers: { 'X-API-Key': apiKey },
         body: formData
@@ -264,7 +265,7 @@ const VoiceToLogWorkflow = () => {
     };
     
     // Post to log stream
-    const response = await fetch('/log/stream', {
+    const response = await fetch('/api/v1/log/stream', {
       method: 'POST',
       headers: { 
         'X-API-Key': apiKey,
@@ -332,7 +333,7 @@ class VoiceDictation {
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.webm');
     
-    const response = await fetch('/audio-transcriptions', {
+    const response = await fetch('/api/v1/audio-transcriptions', {
       method: 'POST',
       headers: { 'X-API-Key': apiKey },
       body: formData

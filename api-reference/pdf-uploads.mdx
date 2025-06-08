@@ -99,7 +99,7 @@ const uploadDocument = async (file) => {
 
 </CodeGroup>
 
-**POST** `/pdf-uploads/upload_pdf`
+**POST** `/api/v1/pdf-uploads/upload_pdf`
 
 Uploads a document for processing. Returns immediately with status while processing continues in background.
 
@@ -189,7 +189,7 @@ result = response.json()
 
 </CodeGroup>
 
-**POST** `/pdf-uploads/upload-from-url`
+**POST** `/api/v1/pdf-uploads/upload-from-url`
 
 Downloads and processes a document from a URL.
 
@@ -216,7 +216,7 @@ Same as `/upload_pdf` endpoint.
 <CodeGroup>
 
 ```bash cURL
-curl https://api.narra.com/api/v1/pdf-uploads/550e8400-e29b-41d4-a716-446655440000/status \
+curl https://api.narra.com/api/v1/pdf-uploads/pdf-uploads/550e8400-e29b-41d4-a716-446655440000/status \
   -H "X-API-Key: your-api-key"
 ```
 
@@ -228,7 +228,7 @@ import time
 def wait_for_processing(doc_id):
     while True:
         response = requests.get(
-            f"https://api.narra.com/api/v1/pdf-uploads/{doc_id}/status",
+            f"https://api.narra.com/api/v1/pdf-uploads/pdf-uploads/{doc_id}/status",
             headers={"X-API-Key": "your-api-key"}
         )
         
@@ -245,7 +245,7 @@ def wait_for_processing(doc_id):
 
 </CodeGroup>
 
-**GET** `/pdf-uploads/{doc_id}/status`
+**GET** `/api/v1/pdf-uploads/pdf-uploads/{doc_id}/status`
 
 Checks the current processing status of a document.
 
@@ -312,7 +312,7 @@ response = requests.post(
 
 </CodeGroup>
 
-**POST** `/pdf-uploads/pdf_processing/{doc_id}/retry`
+**POST** `/api/v1/pdf-uploads/pdf_processing/{doc_id}/retry`
 
 Retries processing for a failed document without re-uploading the file.
 
@@ -335,21 +335,21 @@ Only documents with status `processing_failed` or `pending_processing` can be re
 <CodeGroup>
 
 ```bash cURL
-curl -X DELETE https://api.narra.com/api/v1/pdf-uploads/550e8400-e29b-41d4-a716-446655440000 \
+curl -X DELETE https://api.narra.com/api/v1/pdf-uploads/pdf-uploads/550e8400-e29b-41d4-a716-446655440000 \
   -H "X-API-Key: your-api-key"
 ```
 
 ```python Python
 # Delete document and all associated data
 response = requests.delete(
-    f"https://api.narra.com/api/v1/pdf-uploads/{doc_id}",
+    f"https://api.narra.com/api/v1/pdf-uploads/pdf-uploads/{doc_id}",
     headers={"X-API-Key": "your-api-key"}
 )
 ```
 
 </CodeGroup>
 
-**DELETE** `/pdf-uploads/{doc_id}`
+**DELETE** `/api/v1/pdf-uploads/pdf-uploads/{doc_id}`
 
 Deletes a document and all associated data including:
 - GCS file
@@ -474,7 +474,7 @@ async def upload_and_wait(file_path: str, workspace_id: str, user_id: str):
     # Poll for completion
     while True:
         status_response = requests.get(
-            f"/pdf-uploads/{doc_id}/status",
+            f"/pdf-uploads/pdf-uploads/{doc_id}/status",
             headers={"X-API-Key": api_key}
         )
         
@@ -551,7 +551,7 @@ const uploadDocument = async () => {
       name: result[0].name,
     } as any);
     
-    const uploadResponse = await fetch('/pdf-uploads/upload_pdf', {
+    const uploadResponse = await fetch('/api/v1/pdf-uploads/upload_pdf', {
       method: 'POST',
       headers: { 'X-API-Key': apiKey },
       body: formData,
@@ -573,7 +573,7 @@ const uploadDocument = async () => {
 
 const pollDocumentStatus = (docId: string) => {
   const interval = setInterval(async () => {
-    const response = await fetch(`/pdf-uploads/${docId}/status`, {
+    const response = await fetch(`/api/v1/pdf-uploads/pdf-uploads/${docId}/status`, {
       headers: { 'X-API-Key': apiKey },
     });
     

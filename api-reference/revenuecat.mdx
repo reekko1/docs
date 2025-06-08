@@ -69,7 +69,7 @@ subscription_data = response.json()
 ```javascript JavaScript
 // Admin dashboard refresh subscription
 const refreshSubscription = async (userId) => {
-  const response = await fetch(`/revenuecat/admin/users/${userId}/subscriptions/refresh`, {
+  const response = await fetch(`/api/v1/revenuecat/admin/users/${userId}/subscriptions/refresh`, {
     method: 'POST',
     headers: {
       'X-API-Key': adminApiKey,
@@ -82,7 +82,7 @@ const refreshSubscription = async (userId) => {
 
 </CodeGroup>
 
-**POST** `/revenuecat/admin/users/{user_id}/subscriptions/refresh`
+**POST** `/api/v1/revenuecat/admin/users/{user_id}/subscriptions/refresh`
 
 Forces a fresh sync of user subscription data from RevenueCat, bypassing local cache.
 
@@ -221,7 +221,7 @@ await grantPromotionalAccess('user_456', 'premium_features', '6 months');
 
 </CodeGroup>
 
-**POST** `/revenuecat/admin/users/{user_id}/entitlements/{entitlement_identifier}/grant`
+**POST** `/api/v1/revenuecat/admin/users/{user_id}/entitlements/{entitlement_identifier}/grant`
 
 Grants promotional entitlement access to a user for a specified duration.
 
@@ -243,11 +243,13 @@ You must provide either `duration` OR `end_time_ms`, but not both.
 
 <ParamField body="duration" type="string">
   Human-readable duration string. Supported formats:
-  - `"1 week"`, `"2 weeks"`, `"3 weeks"`
-  - `"1 month"`, `"2 months"`, `"6 months"`
-  - `"1 year"`, `"2 years"`
+  - `"1 day"`, `"3 days"`
+  - `"1 week"`
+  - `"1 month"`, `"2 months"`, `"3 months"`, `"6 months"`
+  - `"1 year"`
+  - `"Lifetime"`
   
-  Maps to RevenueCat standard durations: `weekly`, `monthly`, `two_month`, `three_month`, `six_month`, `annual`, `two_year`
+  Maps to RevenueCat standard durations: `daily`, `three_day`, `weekly`, `monthly`, `two_month`, `three_month`, `six_month`, `yearly`, `lifetime`
 </ParamField>
 
 <ParamField body="end_time_ms" type="number">
@@ -258,45 +260,43 @@ You must provide either `duration` OR `end_time_ms`, but not both.
 
 ```json
 {
-  "success": true,
-  "message": "Promotional entitlement granted successfully and subscription data synced",
-  "granted_entitlement": {
-    "user_id": "user_123",
-    "entitlement_identifier": "pro_access", 
-    "duration": "1 month",
-    "granted_at": "2024-01-15T12:00:00Z"
-  },
-  "updated_subscription": {
-    "user_id": "user_123",
-    "active_entitlements": {
-      "pro_access": {
-        "identifier": "pro_access",
-        "is_active": true,
-        "period_type": "promotional",
-        "expiration_date": "2024-02-15T12:00:00Z"
-      }
+  "user_id": "user_123",
+  "workspace_id": "ws_456",
+  "revenuecat_customer_id": "rc_customer_789",
+  "active_entitlements": {
+    "pro_access": {
+      "identifier": "pro_access",
+      "is_active": true,
+      "will_renew": false,
+      "period_type": "promotional",
+      "latest_purchase_date": "2024-01-15T12:00:00Z",
+      "original_purchase_date": "2024-01-15T12:00:00Z",
+      "expiration_date": "2024-02-15T12:00:00Z",
+      "store": "promotional",
+      "is_sandbox": false,
+      "unsubscribe_detected_at": null,
+      "billing_issue_detected_at": null
     }
-  }
+  },
+  "management_url": null,
+  "first_seen_by_revenuecat_at": "2024-01-15T12:00:00Z",
+  "last_seen_by_revenuecat_at": "2024-01-15T12:00:00Z",
+  "active_entitlement_ids": ["pro_access"],
+  "last_synced_with_revenuecat_api_at": "2024-01-15T12:05:00Z"
 }
 ```
 
-<ResponseField name="granted_entitlement" type="object">
-  Details of the promotional entitlement that was granted
-</ResponseField>
-
-<ResponseField name="updated_subscription" type="object">
-  Updated subscription data after granting the entitlement
-</ResponseField>
+Returns the updated UserSubscription data after granting the promotional entitlement.
 
 ## Duration Mapping
 
 ### Supported Duration Strings
 
 <AccordionGroup>
-  <Accordion title="Weekly Access">
+  <Accordion title="Short Term Access">
+    - `"1 day"` → `daily`
+    - `"3 days"` → `three_day`
     - `"1 week"` → `weekly`
-    - `"2 weeks"` → `two_week`
-    - `"3 weeks"` → `three_week`
   </Accordion>
   
   <Accordion title="Monthly Access">
@@ -306,9 +306,9 @@ You must provide either `duration` OR `end_time_ms`, but not both.
     - `"6 months"` → `six_month`
   </Accordion>
   
-  <Accordion title="Annual Access">
-    - `"1 year"` → `annual`
-    - `"2 years"` → `two_year`
+  <Accordion title="Long Term Access">
+    - `"1 year"` → `yearly`
+    - `"Lifetime"` → `lifetime`
   </Accordion>
 </AccordionGroup>
 
@@ -330,7 +330,7 @@ end_time_ms = int(end_date.timestamp() * 1000)
   Invalid duration string or conflicting parameters
   ```json
   {
-    "detail": "Invalid duration '1 day'. Supported: 1 week, 1 month, 6 months, 1 year, etc."
+    "detail": "Invalid duration. Allowed values are: 1 day, 3 days, 1 week, 1 month, 2 months, 3 months, 6 months, 1 year, Lifetime"
   }
   ```
 </ResponseField>
@@ -480,7 +480,7 @@ results = await grant_beta_access(beta_users, "3 months")
 // React admin dashboard for subscription management
 interface SubscriptionManager {
   async refreshSubscription(userId: string) {
-    const response = await fetch(`/revenuecat/admin/users/${userId}/subscriptions/refresh`, {
+    const response = await fetch(`/api/v1/revenuecat/admin/users/${userId}/subscriptions/refresh`, {
       method: 'POST',
       headers: { 'X-API-Key': adminApiKey }
     });
@@ -494,7 +494,7 @@ interface SubscriptionManager {
   
   async grantPromotionalAccess(userId: string, entitlementId: string, duration: string) {
     const response = await fetch(
-      `/revenuecat/admin/users/${userId}/entitlements/${entitlementId}/grant`,
+      `/api/v1/revenuecat/admin/users/${userId}/entitlements/${entitlementId}/grant`,
       {
         method: 'POST',
         headers: {

@@ -58,7 +58,7 @@ form_fields = response.json()
 
 </CodeGroup>
 
-**GET** `/meta/form-fields/{collection_type}`
+**GET** `/api/v1/meta/form-fields/{collection_type}`
 
 Returns form field definitions for manual data entry in the specified collection.
 
@@ -137,7 +137,7 @@ bp_fields = response.json()
 
 </CodeGroup>
 
-**GET** `/meta/form-fields/vitals/{vital_type}`
+**GET** `/api/v1/meta/form-fields/vitals/{vital_type}`
 
 Returns tailored form fields for specific vital types.
 
@@ -215,7 +215,7 @@ edit_fields = response.json()
 
 </CodeGroup>
 
-**GET** `/meta/history-edit-fields/labs`
+**GET** `/api/v1/meta/history-edit-fields/labs`
 
 Returns editable fields for lab result entries (excludes immutable audit fields).
 
@@ -241,7 +241,7 @@ Returns editable fields for lab result entries (excludes immutable audit fields)
 
 ### Get Vital History Edit Fields
 
-**GET** `/meta/vitals/{vital_type}/history-edit-fields`
+**GET** `/api/v1/meta/vitals/{vital_type}/history-edit-fields`
 
 Returns editable fields for specific vital types in history entries.
 
@@ -303,9 +303,9 @@ top_level_fields = response.json()
 
 </CodeGroup>
 
-**GET** `/meta/top-level-edit-fields/{collection_type}`
+**GET** `/api/v1/meta/top-level-edit-fields/{collection_type}`
 
-Returns fields that can be edited via PUT `/{doc_id}/top` endpoint.
+Returns fields that can be edited via PUT `/api/v1/patient-data/{patient_id}/{collection_type}/{doc_id}/top` endpoint.
 
 #### Response (Medications Example)
 ```json
@@ -335,7 +335,7 @@ Returns fields that can be edited via PUT `/{doc_id}/top` endpoint.
 ```
 
 <Note>
-Vitals and labs return empty arrays - they don't support top-level field editing.
+Vitals and labs don't support top-level field editing - these endpoints will return a 404 error.
 </Note>
 
 ## Field Definitions by Collection
@@ -629,7 +629,16 @@ Temperature uses `text` type instead of `int` to support decimal values:
   Unrecognized vital type
   ```json
   {
-    "detail": "Vital type 'invalid_vital' not found."
+    "detail": "Vital type 'invalid_vital' not found or does not support history entry edits via this endpoint. Valid types: ['blood_pressure', 'heart_rate', 'respiratory_rate', 'oxygen_saturation', 'temperature']"
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="404 Not Found">
+  Collection doesn't support top-level edits
+  ```json
+  {
+    "detail": "No top-level editable fields defined for collection type 'vitals'."
   }
   ```
 </ResponseField>
@@ -644,7 +653,7 @@ Temperature uses `text` type instead of `int` to support decimal values:
 ```typescript
 // Mobile app form generation
 const generateForm = async (collectionType: string) => {
-  const response = await fetch(`/meta/form-fields/${collectionType}`, {
+  const response = await fetch(`/api/v1/meta/form-fields/${collectionType}`, {
     headers: { 'X-API-Key': apiKey }
   });
   
@@ -669,7 +678,7 @@ const labFields = await generateForm('labs');
 ```typescript
 // Handle vital type selection
 const getVitalFields = async (vitalType: string) => {
-  const response = await fetch(`/meta/form-fields/vitals/${vitalType}`, {
+  const response = await fetch(`/api/v1/meta/form-fields/vitals/${vitalType}`, {
     headers: { 'X-API-Key': apiKey }
   });
   
@@ -692,11 +701,11 @@ const generateEditForm = async (collectionType: string, entryType?: string) => {
   let endpoint = '';
   
   if (collectionType === 'labs') {
-    endpoint = '/meta/history-edit-fields/labs';
+    endpoint = '/api/v1/meta/history-edit-fields/labs';
   } else if (collectionType === 'vitals' && entryType) {
-    endpoint = `/meta/vitals/${entryType}/history-edit-fields`;
+    endpoint = `/api/v1/meta/vitals/${entryType}/history-edit-fields`;
   } else {
-    endpoint = `/meta/top-level-edit-fields/${collectionType}`;
+    endpoint = `/api/v1/meta/top-level-edit-fields/${collectionType}`;
   }
   
   const response = await fetch(endpoint, {
