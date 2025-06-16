@@ -1,0 +1,675 @@
+---
+title: 'Unified Log Processing with Media Upload'
+description: 'Create clinical logs with file attachments and real-time AI processing in a single request'
+---
+The Log Stream V2 endpoint combines everything you need for clinical documentation in one streamlined call. Upload files, create the log entry, and get real-time AI processing - no more juggling multiple API calls or managing file-to-log relationships manually.
+
+<Info>
+**For newcomers**: Think of this as our "complete documentation endpoint." When a doctor wants to log "Patient's wound is healing well" with a photo attachment, this endpoint handles the photo upload, saves the note, links them together, and processes everything with AI - all in real-time.
+
+**For senior devs**: Multipart form-data with embedded SSE streaming, atomic log-media relationship creation via Firestore batch operations, and full AI lens processing pipeline with progress events.
+</Info>
+
+## Overview
+
+### Key Features
+- **Unified workflow** - Log creation + file upload + AI processing in single request
+- **Real-time streaming** - Server-Sent Events for live AI processing updates
+- **Automatic media linking** - Files are automatically attached to the created log
+- **AI lens processing** - Full clinical categorization and data extraction
+- **Atomic operations** - Log and media relationships created safely via Firestore batches
+
+### Processing Pipeline
+1. **Log Creation** - Creates log document and gets unique log_id
+2. **File Upload** - Uploads files to Google Cloud Storage (if provided)
+3. **Media Linking** - Attaches uploaded files to log via patient_media collection
+4. **AI Processing** - Streams categorization and lens processing events
+5. **Completion** - Final success event with processing summary
+
+### Why We Built This
+- **Single API call** - Eliminates complex multi-step workflows for documentation
+- **Better UX** - Mobile apps can attach photos and get processing in one request
+- **Guaranteed relationships** - Log-media links are created atomically, never orphaned
+- **Streaming feedback** - Shows progress for long-running AI operations
+
+## Authentication
+
+```bash
+X-API-Key: your-api-key
+```
+
+This endpoint requires API key authentication. Keys are managed per workspace.
+
+## Endpoint
+
+### Stream Log Processing with Files
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.narra.com/api/v1/log/stream_v2 \
+  -H "X-API-Key: your-api-key" \
+  -F "log=Patient reports chest pain 7/10, gave nitroglycerin SL, pain reduced to 3/10. BP 150/95, HR 88. Will monitor closely." \
+  -F "patient_id=pt_123" \
+  -F "user_id=user_456" \
+  -F "workspace_id=ws_789" \
+  -F "files=@ecg_strip.jpg" \
+  -F "files=@medication_list.pdf"
+```
+
+```python Python
+import requests
+import json
+
+# Upload with files and stream processing
+files = [
+    ('files', ('wound_photo.jpg', open('wound_photo.jpg', 'rb'), 'image/jpeg')),
+    ('files', ('treatment_video.mp4', open('treatment_video.mp4', 'rb'), 'video/mp4'))
+]
+
+data = {
+    'log': 'Wound dressing changed. Healing progressing well, no signs of infection. Continue current treatment plan.',
+    'patient_id': 'pt_123',
+    'user_id': 'user_456',
+    'workspace_id': 'ws_789'
+}
+
+response = requests.post(
+    "https://api.narra.com/api/v1/log/stream_v2",
+    headers={"X-API-Key": "your-api-key"},
+    files=files,
+    data=data,
+    stream=True
+)
+
+for line in response.iter_lines():
+    if line:
+        data_str = line.decode('utf-8')
+        if data_str.startswith('data: '):
+            event_data = json.loads(data_str[6:])
+            print(f"Event: {event_data}")
+```
+
+```javascript JavaScript
+// React Native / Web upload
+const uploadLogWithFiles = async (logText, files, metadata) => {
+  const formData = new FormData();
+  
+  // Add log data
+  formData.append('log', logText);
+  formData.append('patient_id', metadata.patientId);
+  formData.append('user_id', metadata.userId);
+  formData.append('workspace_id', metadata.workspaceId);
+  
+  // Add files (optional)
+  files.forEach(file => {
+    formData.append('files', file);
+  });
+  
+  const response = await fetch('/api/v1/log/stream_v2', {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+    },
+    body: formData
+  });
+  
+  // Process SSE stream
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const eventData = JSON.parse(line.slice(6));
+        handleProcessingEvent(eventData);
+      }
+    }
+  }
+};
+```
+
+</CodeGroup>
+
+**POST** `/api/v1/log/stream_v2`
+
+Creates a clinical log with optional file attachments and streams AI processing updates in real-time.
+
+### Request Body (multipart/form-data)
+
+<ParamField body="log" type="string" required>
+  The raw text content of the clinical log entry. Can contain any clinical information that needs to be processed and categorized.
+</ParamField>
+
+<ParamField body="patient_id" type="string" required>
+  The patient's document ID. Used to link the log and apply processed data to the correct patient record.
+</ParamField>
+
+<ParamField body="user_id" type="string" required>
+  The user's document ID. Tracks who created this log for audit purposes and attribution.
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  The workspace document ID. Provides organizational context and ensures proper data isolation.
+</ParamField>
+
+<ParamField body="files" type="file[]">
+  Optional files to upload and attach to the log. Supports any file type (images, videos, documents, etc.). Files are automatically linked to the created log.
+</ParamField>
+
+### Response Format
+
+The response is a stream of Server-Sent Events. Each event follows this structure:
+
+```
+data: {"event_type": "eventName", "data": {...}}
+```
+
+### Event Types
+
+#### Processing Start Events
+
+<ResponseField name="processing_start" type="object">
+  Initial event confirming processing has begun with the generated log ID.
+  ```json
+  {
+    "event_type": "processing_start",
+    "data": {
+      "client_provided_log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="using_existing_log_id" type="object">
+  Confirms the log ID being used for this processing session.
+  ```json
+  {
+    "event_type": "using_existing_log_id",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+#### AI Categorization Events
+
+<ResponseField name="categorization_start" type="object">
+  AI lens categorization has started.
+  ```json
+  {
+    "event_type": "categorization_start",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="categorization_complete" type="object">
+  AI categorization finished with identified clinical lenses.
+  ```json
+  {
+    "event_type": "categorization_complete",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "lenses": ["vitals", "problem_list", "plan"],
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+#### Lens Processing Events
+
+<ResponseField name="lens_processing_start" type="object">
+  Individual lens processing has started.
+  ```json
+  {
+    "event_type": "lens_processing_start",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "lens": "vitals",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="lens_processing_complete" type="object">
+  Individual lens processing completed with results.
+  ```json
+  {
+    "event_type": "lens_processing_complete",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "lens": "vitals",
+      "status": "success_data_found",
+      "details": {"items_processed": 4},
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+#### Update Events
+
+<ResponseField name="lens_update_start" type="object">
+  Firestore lens data update started.
+  ```json
+  {
+    "event_type": "lens_update_start",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "lenses_to_save": ["vitals", "problem_list", "plan"],
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="lens_update_complete" type="object">
+  Firestore lens data successfully updated.
+  ```json
+  {
+    "event_type": "lens_update_complete",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+#### Completion Events
+
+<ResponseField name="all_processing_complete" type="object">
+  All processing steps completed successfully with summary.
+  ```json
+  {
+    "event_type": "all_processing_complete",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "overall_status": "success",
+      "summary": [
+        {"lens": "vitals", "status": "success_data_found", "details": {"items_processed": 4}},
+        {"lens": "problem_list", "status": "success_data_found", "details": {"items_processed": 2}},
+        {"lens": "plan", "status": "success_data_found", "details": {"items_processed": 3}}
+      ],
+      "timestamp": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+</ResponseField>
+
+## File Processing
+
+### Automatic Media Linking
+
+When files are included in the request:
+
+1. **Log Creation** - Creates log document and generates unique log_id
+2. **File Upload** - Uploads files to Google Cloud Storage under organized paths
+3. **Metadata Storage** - Creates entries in `patient_media` collection with log_id reference
+4. **Log Attachment** - Updates log document's `attachments` array with media metadata
+
+### Storage Structure
+
+Files are organized in Google Cloud Storage:
+```
+{workspaceId}/{patientId}/{mediaId}/{filename}
+{workspaceId}/{patientId}/{mediaId}/video_preview.jpg  // Auto-generated for videos
+```
+
+### Supported File Types
+
+- **Images**: JPEG, PNG, GIF, WEBP, etc.
+- **Videos**: MP4, MOV, AVI (with automatic preview generation)
+- **Documents**: PDF, DOC, DOCX, TXT, etc.
+- **Audio**: MP3, WAV, M4A, etc.
+- **Any other file type** - No restrictions
+
+## Available Lenses
+
+The AI categorization identifies these clinical data types:
+
+### Primary Lenses
+- **`vitals`** - Vital signs (blood pressure, heart rate, temperature, oxygen saturation)
+- **`lab_results`** - Laboratory test results and values
+- **`medications`** - Medication discussions, changes, dosing
+- **`problem_list`** - Medical problems, diagnoses, conditions
+- **`imaging_reports`** - Imaging studies (X-ray, CT, MRI, ultrasound)
+- **`allergy_overview`** - Allergies, reactions, sensitivities
+- **`family_social_history`** - Family history or social factors
+- **`plan`** - Future actions, orders, recommendations, referrals
+
+### Fallback
+- **`Open router`** - Used when content doesn't clearly fit other categories
+
+## Usage Examples
+
+### Documentation with Photo
+
+```json
+{
+  "log": "Wound assessment: 3cm laceration on left forearm. Edges well-approximated, no signs of infection. Cleaned with saline and redressed with sterile gauze.",
+  "patient_id": "pt_123",
+  "user_id": "user_456", 
+  "workspace_id": "ws_789"
+}
+```
+
+**Files**: `wound_before.jpg`, `wound_after.jpg`  
+**Expected categorization**: `["plan"]`  
+**Result**: Log created with photo attachments, treatment plan extracted
+
+### Multi-Modal Clinical Note
+
+```json
+{
+  "log": "Patient reports chest pain 8/10. Vitals: BP 160/95, HR 110, O2 sat 94%. EKG shows ST elevation in leads II, III, aVF. Started on heparin protocol. Cardiology consulted emergently.",
+  "patient_id": "pt_123",
+  "user_id": "user_456",
+  "workspace_id": "ws_789"
+}
+```
+
+**Files**: `ekg_12_lead.pdf`, `chest_xray.jpg`  
+**Expected categorization**: `["vitals", "problem_list", "medications", "plan", "imaging_reports"]`  
+**Result**: Comprehensive lens processing with attached diagnostic images
+
+### Simple Note Without Files
+
+```json
+{
+  "log": "Patient feeling much better today. Continue current medications.",
+  "patient_id": "pt_123",
+  "user_id": "user_456",
+  "workspace_id": "ws_789"
+}
+```
+
+**Files**: None  
+**Expected categorization**: `["medications", "plan"]`  
+**Result**: Text-only log with AI processing, no media attachments
+
+## Error Handling
+
+### Graceful File Upload Handling
+
+The endpoint continues AI processing even if file upload fails:
+
+1. **Log Creation Success** - Log is saved first, ensuring note is preserved
+2. **File Upload Failure** - Logs error but continues with AI processing  
+3. **AI Processing** - Proceeds normally using log text content
+4. **Result** - User gets processed log even if attachments failed
+
+### Common Error Scenarios
+
+<ResponseField name="422 Unprocessable Entity">
+  Missing required form fields
+  ```json
+  {
+    "detail": [
+      {
+        "loc": ["body", "log"],
+        "msg": "field required",
+        "type": "value_error.missing"
+      }
+    ]
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error">
+  Unexpected server error during processing
+  ```json
+  {
+    "detail": "An internal server error occurred during log processing."
+  }
+  ```
+</ResponseField>
+
+### Stream Error Events
+
+<ResponseField name="stream_error" type="object">
+  Stream-level error occurred during processing.
+  ```json
+  {
+    "event_type": "stream_error",
+    "data": {
+      "log_id": "7RJxLyvHtRFM44mug29n",
+      "patient_id": "pt_123",
+      "error": "An unexpected error occurred during stream generation.",
+      "detail": "AI processing timeout"
+    }
+  }
+  ```
+</ResponseField>
+
+## Integration Examples
+
+### Mobile App Documentation Flow
+
+```typescript
+// React Native complete documentation flow
+const createLogWithAttachments = async (logText: string, attachments: Asset[]) => {
+  const formData = new FormData();
+  
+  // Add log data
+  formData.append('log', logText);
+  formData.append('patient_id', currentPatient.id);
+  formData.append('user_id', currentUser.id);
+  formData.append('workspace_id', currentWorkspace.id);
+  
+  // Add files
+  attachments.forEach((asset, index) => {
+    formData.append('files', {
+      uri: asset.uri,
+      type: asset.type,
+      name: asset.fileName || `attachment_${index}`,
+    } as any);
+  });
+  
+  // Start processing with progress updates
+  setProcessingState('uploading');
+  
+  const response = await fetch(`${API_URL}/log/stream_v2`, {
+    method: 'POST',
+    headers: { 'X-API-Key': apiKey },
+    body: formData
+  });
+  
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    
+    const chunk = decoder.decode(value);
+    const lines = chunk.split('\n');
+    
+    for (const line of lines) {
+      if (line.startsWith('data: ')) {
+        const event = JSON.parse(line.slice(6));
+        handleProcessingEvent(event);
+      }
+    }
+  }
+};
+
+const handleProcessingEvent = (event: any) => {
+  switch (event.event_type) {
+    case 'processing_start':
+      setLogId(event.data.client_provided_log_id);
+      setProcessingState('ai_processing');
+      break;
+    case 'categorization_complete':
+      setDetectedLenses(event.data.lenses);
+      break;
+    case 'lens_processing_complete':
+      updateLensProgress(event.data.lens, 'complete');
+      break;
+    case 'all_processing_complete':
+      setProcessingState('complete');
+      navigateToLogDetails(logId);
+      break;
+    case 'stream_error':
+      setProcessingState('error');
+      showError(event.data.error);
+      break;
+  }
+};
+```
+
+### Web App Drag & Drop Integration
+
+```typescript
+// React web app with drag and drop
+const DocumentationUpload: React.FC = () => {
+  const [logText, setLogText] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const [events, setEvents] = useState<any[]>([]);
+  
+  const handleSubmit = async () => {
+    setProcessing(true);
+    setEvents([]);
+    
+    const formData = new FormData();
+    formData.append('log', logText);
+    formData.append('patient_id', patientId);
+    formData.append('user_id', userId);
+    formData.append('workspace_id', workspaceId);
+    
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    try {
+      const response = await fetch('/api/v1/log/stream_v2', {
+        method: 'POST',
+        headers: { 'X-API-Key': apiKey },
+        body: formData
+      });
+      
+      // Process SSE stream
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const event = JSON.parse(line.slice(6));
+            setEvents(prev => [...prev, event]);
+            
+            if (event.event_type === 'all_processing_complete') {
+              setProcessing(false);
+              onDocumentationComplete(event.data.log_id);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      setProcessing(false);
+      console.error('Documentation failed:', error);
+    }
+  };
+  
+  return (
+    <div className="documentation-form">
+      <textarea
+        value={logText}
+        onChange={(e) => setLogText(e.target.value)}
+        placeholder="Enter clinical notes..."
+        className="log-textarea"
+      />
+      
+      <div
+        className="file-drop-zone"
+        onDrop={handleFileDrop}
+        onDragOver={(e) => e.preventDefault()}
+      >
+        {files.length > 0 ? (
+          <div>
+            {files.map((file, index) => (
+              <div key={index}>{file.name}</div>
+            ))}
+          </div>
+        ) : (
+          <p>Drop files here or click to upload</p>
+        )}
+      </div>
+      
+      <button 
+        onClick={handleSubmit} 
+        disabled={!logText || processing}
+      >
+        {processing ? 'Processing...' : 'Create Log with AI Processing'}
+      </button>
+      
+      {processing && (
+        <div className="processing-events">
+          {events.map((event, index) => (
+            <div key={index} className="event">
+              {event.event_type}: {JSON.stringify(event.data)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+## Performance Tips
+
+1. **Optimize file sizes** - Compress images/videos before upload to reduce processing time
+2. **Batch related files** - Upload all related files in single request rather than multiple calls
+3. **Use appropriate formats** - JPEG for photos, MP4 for videos, PDF for documents
+4. **Monitor file count** - Large numbers of files increase upload and processing time
+5. **Connection management** - Maintain persistent connections for SSE streaming
+
+## Debugging
+
+<Tip>
+For troubleshooting log_v2 issues:
+- **Server logs**: Check for file upload errors and AI processing failures
+- **Firestore console**: Verify log document and patient_media entries were created
+- **Google Cloud Storage**: Confirm files were actually uploaded to GCS
+- **Network panel**: Verify multipart form-data encoding and SSE connection
+- **Event tracking**: Log all SSE events to identify where processing fails
+</Tip>
+
+## Related Endpoints
+
+- [Clinical Log Processing](/api-reference/log-stream) - Text-only log processing (original version)
+- [File Upload & Storage](/api-reference/uploads) - Standalone file upload for existing logs
+- [AI Clinical Assistant](/api-reference/chat-v2) - Query processed log data with AI assistant
+- [Photo to Text](/api-reference/vision-logs) - Analyze uploaded images with AI

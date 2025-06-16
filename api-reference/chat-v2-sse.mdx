@@ -422,10 +422,12 @@ class ChatV2EventHandler {
     this.mentionedLogs = [];
   }
 
-  connect(prompt, workspaceId, patientId = null) {
+  connect(prompt, workspaceId, userId, isPremium, patientId = null) {
     const params = new URLSearchParams({
       prompt,
       workspace_id: workspaceId,
+      user_id: userId,
+      is_premium: isPremium.toString(),
       ...(patientId && { patient_id: patientId })
     });
 
@@ -580,6 +582,8 @@ const chatHandler = new ChatV2EventHandler();
 const eventSource = chatHandler.connect(
   "What are the patient's recent vitals?",
   "workspace_123",
+  "user_123",
+  false, // is_premium
   "patient_456"
 );
 ```

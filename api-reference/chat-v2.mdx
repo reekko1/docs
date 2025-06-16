@@ -46,6 +46,8 @@ curl -X POST https://api.narra.com/api/v1/chat_v2 \
   -d '{
     "prompt": "What are the latest guidelines for hypertension management?",
     "workspace_id": "ws_123",
+    "user_id": "user_123",
+    "is_premium": false,
     "patient_id": "pt_456",
     "use_search": true
   }'
@@ -62,6 +64,8 @@ response = requests.post(
     json={
         "prompt": "Summarize this patient's recent labs",
         "workspace_id": "ws_123",
+        "user_id": "user_123",
+        "is_premium": True,
         "patient_id": "pt_456",
         "session_id": "existing-session-id"  # Optional for continuity
     },
@@ -90,6 +94,14 @@ Streams AI-generated responses with tool usage updates in real-time.
 
 <ParamField body="workspace_id" type="string" required>
   Your workspace identifier. This isolates data and configurations per organization.
+</ParamField>
+
+<ParamField body="user_id" type="string" required>
+  User identifier for usage tracking and rate limiting.
+</ParamField>
+
+<ParamField body="is_premium" type="boolean" required>
+  Whether the user has premium access. Premium users have unlimited messages, while free users are limited to a daily quota.
 </ParamField>
 
 <ParamField body="patient_id" type="string">
@@ -240,6 +252,8 @@ The AI can use three tools to answer queries:
 {
   "prompt": "What are the contraindications for metformin?",
   "workspace_id": "ws_123",
+  "user_id": "user_123",
+  "is_premium": false,
   "use_search": true
 }
 ```
@@ -249,6 +263,8 @@ The AI can use three tools to answer queries:
 {
   "prompt": "Summarize this patient's cardiac history",
   "workspace_id": "ws_123",
+  "user_id": "user_123",
+  "is_premium": true,
   "patient_id": "pt_456"
 }
 ```
@@ -258,6 +274,8 @@ The AI can use three tools to answer queries:
 {
   "prompt": "What does this ECG show?",
   "workspace_id": "ws_123",
+  "user_id": "user_123",
+  "is_premium": false,
   "images": [{
     "base64": "iVBORw0KGgoAAAANS...",
     "mime": "image/png"
@@ -270,9 +288,38 @@ The AI can use three tools to answer queries:
 {
   "prompt": "What about the dosing for elderly patients?",
   "workspace_id": "ws_123",
+  "user_id": "user_123",
+  "is_premium": true,
   "session_id": "existing-session-123"
 }
 ```
+
+## Rate Limiting
+
+The Chat V2 endpoint includes rate limiting for free users:
+
+- **Free users**: Limited to a configurable number of messages per day (default: 20)
+- **Premium users**: Unlimited messages
+- **Reset**: Daily limits reset at midnight UTC
+
+### Rate Limit Error Response (HTTP 429)
+
+When a free user exceeds their daily quota:
+
+```json
+{
+  "detail": {
+    "error": "Daily message limit exceeded",
+    "current_usage": 20,
+    "daily_limit": 20,
+    "reset_time": "8h 30m",
+    "upgrade_info": "Upgrade to Premium for unlimited messages",
+    "error_code": "RATE_LIMIT_EXCEEDED"
+  }
+}
+```
+
+The `reset_time` field shows how much time remains until the limit resets (e.g., "8h 30m" or "45m").
 
 ## Error Handling
 
@@ -287,7 +334,8 @@ The AI can use three tools to answer queries:
 
 Common errors:
 - **Authentication**: Missing or invalid API key
-- **Validation**: Missing required fields (prompt, workspace_id)
+- **Rate Limit (429)**: Daily message limit exceeded for free users
+- **Validation**: Missing required fields (prompt, workspace_id, user_id, is_premium)
 - **Timeouts**: Tool execution exceeding 5 seconds
 - **Stream timeout**: Total stream exceeding 60 seconds
 
@@ -325,6 +373,8 @@ const streamChat = async (prompt: string, patientId?: string) => {
     body: JSON.stringify({
       prompt,
       workspace_id: currentWorkspace.id,
+      user_id: currentUser.id,
+      is_premium: currentUser.isPremium,
       patient_id: patientId,
       session_id: currentSession?.id
     })
