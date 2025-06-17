@@ -38,7 +38,8 @@
               "api-reference/chat-v2",
               "api-reference/chat-v2-sse",
               "api-reference/patient-data",
-              "api-reference/log-stream"
+              "api-reference/log-stream",
+              "api-reference/log-stream-v2"
             ]
           },
           {
