@@ -35,6 +35,7 @@
           {
             "group": "Core Features",
             "pages": [
+              "api-reference/narra-chat",
               "api-reference/chat-v2",
               "api-reference/chat-v2-sse",
               "api-reference/patient-data",

@@ -1,0 +1,969 @@
+---
+title: "NarraChat Conversational AI"
+description: "Intelligent team-based AI conversations for healthcare professionals with specialized medical agents"
+---
+
+<Info>
+**For newcomers:** NarraChat is your intelligent medical conversation partner that automatically routes your questions to the right specialist. Ask about medical calculations, research literature, or patient information, and it intelligently decides which expert AI agent should handle your request while streaming real-time responses.
+
+**For senior devs:** Agno team-based conversational AI system using "route" mode for intelligent delegation to 3 specialized medical agents. PostgreSQL session persistence, native streaming with intermediate events, workspace-scoped multi-tenancy, and comprehensive medical compliance features. 70% code reduction vs legacy chat systems.
+</Info>
+
+## Overview
+
+NarraChat represents the next generation of conversational AI for healthcare professionals, providing intelligent routing to specialized medical agents with real-time streaming responses. Unlike traditional chatbots, NarraChat understands medical context and automatically delegates requests to the most appropriate specialist agent.
+
+<CardGroup cols={2}>
+  <Card title="Intelligent Routing" icon="route">
+    AI-powered delegation to specialized medical agents based on request context
+  </Card>
+  <Card title="Medical Specialists" icon="user-doctor">
+    3 purpose-built agents: Literature Search, Medical Calculator, and Patient Query
+  </Card>
+  <Card title="Real-time Streaming" icon="bolt">
+    Native Agno streaming with routing decisions, tool usage, and response generation
+  </Card>
+  <Card title="Clinical Compliance" icon="shield-check">
+    Medical disclaimers, citation requirements, and HIPAA-compliant workspace isolation
+  </Card>
+</CardGroup>
+
+## Authentication
+
+All NarraChat endpoints require API key authentication.
+
+```http
+X-API-Key: your-api-key-here
+```
+
+## Conversational AI Stream
+
+### Endpoint
+
+```http
+POST /api/v1/chat_v3/stream
+```
+
+### Headers
+
+```http
+Content-Type: application/json
+X-API-Key: your-api-key
+Accept: text/event-stream
+Cache-Control: no-cache
+```
+
+### Request Body
+
+<ParamField body="message" type="string" required>
+  The user's message or question for the AI team
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  Workspace identifier for data isolation and patient access
+</ParamField>
+
+<ParamField body="user_id" type="string" optional>
+  User identifier for session management and audit trails
+</ParamField>
+
+<ParamField body="session_id" type="string" optional>
+  Session identifier for conversation continuity. Auto-generated if not provided.
+</ParamField>
+
+<ParamField body="debug_mode" type="boolean" optional>
+  Enable detailed logging and debugging information (default: false)
+</ParamField>
+
+### Request Example
+
+```json
+{
+  "message": "Calculate the CHA2DS2-VASc score for a 65-year-old female with diabetes and hypertension",
+  "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+  "user_id": "dr_smith_123",
+  "session_id": "chat_session_456",
+  "debug_mode": false
+}
+```
+
+## Specialized Medical Agents
+
+NarraChat intelligently routes requests to three specialized agents based on the context and intent of the user's message:
+
+### Literature Search Agent
+
+<AccordionGroup>
+  <Accordion title="Capabilities and Use Cases">
+    **Purpose**: Evidence-based medical research and literature search
+    
+    **Model**: Perplexity (sonar-reasoning-pro) for comprehensive online research
+    
+    **What it handles:**
+    - "Find recent studies on diabetes treatment"
+    - "What's the latest research on COVID-19 vaccines?"
+    - "Show me evidence for hypertension guidelines"
+    - "Are there any contraindications for this medication?"
+    
+    **Response format:**
+    - Peer-reviewed journal citations with URLs
+    - Evidence quality assessment (Level I-V)
+    - Systematic review summaries
+    - Clinical guideline recommendations
+    - Proper medical citations with [1], [2], [3] format
+  </Accordion>
+</AccordionGroup>
+
+### Medical Calculator Agent
+
+<AccordionGroup>
+  <Accordion title="32+ Medical Calculators Available">
+    **Purpose**: Comprehensive medical calculations and diagnostic interpreters
+    
+    **Integration**: NarraLabs Medical Calculator API
+    
+    **Calculator Categories:**
+    
+    **Cardiovascular**
+    - CHA₂DS₂-VASc (stroke risk in atrial fibrillation)
+    - TIMI Risk Score (acute coronary syndromes)
+    - GRACE Score (6-month mortality post-ACS)
+    - Wells Score (pulmonary embolism probability)
+    
+    **Nephrology**
+    - eGFR (estimated glomerular filtration rate)
+    - Creatinine Clearance (Cockcroft-Gault)
+    - Fluid Deficit Calculation
+    - Fractional Excretion of Sodium
+    
+    **Neurology**
+    - Glasgow Coma Scale
+    - NIHSS (National Institutes of Health Stroke Scale)
+    - ICH Volume (intracerebral hemorrhage)
+    - mRS (modified Rankin Scale)
+    
+    **Critical Care**
+    - MEWS (Modified Early Warning Score)
+    - PEWS (Pediatric Early Warning Score)
+    - qSOFA (quick Sequential Organ Failure Assessment)
+    - Oxygenation Index
+    
+    **Metabolism & Nutrition**
+    - BMI (Body Mass Index)
+    - BSA (Body Surface Area)
+    - IBW (Ideal Body Weight)
+    - Glucose Infusion Rate
+    
+    **AI-Powered Interpreters**
+    - CSF Analysis Interpretation
+    - ABG (Arterial Blood Gas) Analysis
+    - Hepatitis B Serology Panel
+    - Basic Metabolic Panel Analysis
+  </Accordion>
+</AccordionGroup>
+
+### Patient Query Agent
+
+<AccordionGroup>
+  <Accordion title="Patient Data Access with Clinical Citations">
+    **Purpose**: Patient information retrieval and clinical data access
+    
+    **Key Features:**
+    - Workspace-scoped patient access
+    - AI-powered patient matching by name, MRN, or criteria
+    - Mandatory clinical citations [1], [2], [3] for compliance
+    - Complete patient log history retrieval
+    
+    **What it handles:**
+    - "Look up patient John Smith"
+    - "Find logs for MRN 123456"
+    - "Show recent visits for diabetic patients"
+    - "What medications is Sarah Johnson taking?"
+    
+    **Workflow:**
+    1. Retrieve all patients in workspace for intelligent matching
+    2. Match patient using AI-powered fuzzy matching
+    3. Query specific patient logs with clinical citations
+    4. Format response with proper medical context
+    
+    **Citation Format:**
+    All patient data references include proper citations:
+    ```
+    Patient reports blood pressure of 140/90 [1], taking lisinopril 10mg daily [2].
+    
+    Citations:
+    [1] Patient Log - 2025-01-31 14:30:22
+    [2] Patient Log - 2025-01-28 09:15:45
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Intelligent Routing System
+
+NarraChat's team leader analyzes incoming messages and intelligently routes them to the appropriate specialist:
+
+<Steps>
+  <Step title="Message Analysis">
+    The team leader analyzes the user's message to understand intent and context
+  </Step>
+  
+  <Step title="Route Decision">
+    Based on keywords, medical context, and intent, determines the best agent:
+    - **Medical calculations** → Medical Calculator Agent
+    - **Research questions** → Literature Search Agent
+    - **Patient information** → Patient Query Agent
+  </Step>
+  
+  <Step title="Agent Execution">
+    The selected agent processes the request using its specialized tools and knowledge
+  </Step>
+  
+  <Step title="Response Generation">
+    Results are formatted with appropriate medical context and compliance features
+  </Step>
+</Steps>
+
+### Routing Examples
+
+| User Message | Routed To | Why |
+|-------------|-----------|-----|
+| "Calculate BMI for 170cm, 70kg patient" | Medical Calculator | Contains calculation request with specific values |
+| "Find recent studies on diabetes treatment" | Literature Search | Research question about medical literature |
+| "Look up patient John Smith's recent visits" | Patient Query | Patient data retrieval request |
+| "What's the CHA2DS2-VASc score for..." | Medical Calculator | Specific medical calculator mentioned |
+| "Are there contraindications for metformin?" | Literature Search | Evidence-based clinical question |
+
+## Server-Sent Events Response
+
+The endpoint returns real-time streaming events showing routing decisions, agent processing, and results:
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+
+event: <event_type>
+data: <JSON_payload>
+
+```
+
+### Core Event Types
+
+<ResponseField name="team_run_started" type="object">
+  Conversation processing begins
+  <Expandable title="Event data">
+    <ResponseField name="message" type="string">
+      "Team run started"
+    </ResponseField>
+    <ResponseField name="team_id" type="string">
+      "narra-chat-medical-team"
+    </ResponseField>
+    <ResponseField name="run_id" type="string">
+      Unique run identifier
+    </ResponseField>
+    <ResponseField name="model" type="string">
+      AI model being used
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="team_tool_call_started" type="object">
+  Agent routing decision made
+  <Expandable title="Event data">
+    <ResponseField name="tool_name" type="string">
+      Name of the agent being called
+    </ResponseField>
+    <ResponseField name="agent_type" type="string">
+      "literature_search_agent", "medical_calculator_agent", or "patient_query_agent"
+    </ResponseField>
+    <ResponseField name="routing_reason" type="string">
+      Why this agent was selected
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="team_tool_call_completed" type="object">
+  Agent has completed processing
+  <Expandable title="Event data">
+    <ResponseField name="tool_name" type="string">
+      Name of the completed agent
+    </ResponseField>
+    <ResponseField name="success" type="boolean">
+      Whether the agent task completed successfully
+    </ResponseField>
+    <ResponseField name="result_summary" type="string">
+      Brief summary of agent results
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="team_reasoning_step" type="object">
+  Team leader's reasoning process
+  <Expandable title="Event data">
+    <ResponseField name="content" type="string">
+      Current reasoning step content
+    </ResponseField>
+    <ResponseField name="reasoning_type" type="string">
+      "analysis", "routing", "synthesis"
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="team_run_completed" type="object">
+  Final response ready
+  <Expandable title="Event data">
+    <ResponseField name="content" type="string">
+      Complete formatted response
+    </ResponseField>
+    <ResponseField name="citations" type="array">
+      Array of citation objects with URLs and sources
+    </ResponseField>
+    <ResponseField name="agent_used" type="string">
+      Which agent processed the request
+    </ResponseField>
+    <ResponseField name="processing_time_ms" type="number">
+      Total processing time
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example Conversations
+
+### Medical Calculator Request
+
+<CodeGroup>
+
+```json Request
+{
+  "message": "Calculate CHA2DS2-VASc score for 68-year-old female with diabetes, hypertension, and history of stroke",
+  "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+  "user_id": "dr_cardiology_456"
+}
+```
+
+```json Streaming Response Events
+// Event 1: Processing starts
+{
+  "event": "team_run_started",
+  "data": {
+    "message": "Team run started",
+    "team_id": "narra-chat-medical-team",
+    "model": "gpt-4.1-mini-2025-04-14"
+  }
+}
+
+// Event 2: Route to calculator agent
+{
+  "event": "team_tool_call_started", 
+  "data": {
+    "tool_name": "medical_calculator_agent",
+    "agent_type": "medical_calculator_agent",
+    "routing_reason": "Request contains specific medical calculator (CHA2DS2-VASc) with patient parameters"
+  }
+}
+
+// Event 3: Calculator processing complete
+{
+  "event": "team_tool_call_completed",
+  "data": {
+    "tool_name": "medical_calculator_agent",
+    "success": true,
+    "result_summary": "CHA2DS2-VASc score calculated: 6 points (high stroke risk)"
+  }
+}
+
+// Event 4: Final response
+{
+  "event": "team_run_completed",
+  "data": {
+    "content": "**CHA₂DS₂-VASc Score: 6 points (High Risk)**\n\nBreakdown:\n- Age 65-74: 1 point\n- Female: 1 point\n- Diabetes: 1 point\n- Hypertension: 1 point\n- Stroke/TIA history: 2 points\n\n**Clinical Interpretation:**\nScore ≥2 indicates high stroke risk. Anticoagulation therapy is strongly recommended unless contraindicated.\n\n**Disclaimer:** This calculation is for educational purposes. Clinical decisions should always consider complete patient assessment.",
+    "agent_used": "medical_calculator_agent",
+    "processing_time_ms": 1247
+  }
+}
+```
+
+</CodeGroup>
+
+### Literature Search Request
+
+<CodeGroup>
+
+```json Request
+{
+  "message": "What's the latest evidence on GLP-1 agonists for cardiovascular outcomes in diabetes?",
+  "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+  "user_id": "dr_endocrine_789"
+}
+```
+
+```json Final Response Content
+{
+  "content": "**GLP-1 Agonists and Cardiovascular Outcomes: Latest Evidence**\n\n**Key Findings from Recent Studies:**\n\n1. **SUSTAIN-6 Trial (2016)** - Semaglutide demonstrated 26% reduction in major adverse cardiovascular events (MACE) in patients with type 2 diabetes and high cardiovascular risk [1].\n\n2. **LEADER Trial (2016)** - Liraglutide showed 13% reduction in cardiovascular death, non-fatal MI, or stroke compared to placebo [2].\n\n3. **Recent Meta-Analysis (2023)** - Pooled analysis of 8 major trials confirms consistent cardiovascular benefits across GLP-1 receptor agonists, with particular strength in reducing stroke risk [3].\n\n**Clinical Implications:**\n- GLP-1 agonists provide cardiovascular protection beyond glycemic control\n- Benefits seen across various patient populations with T2DM\n- Guidelines now recommend as preferred agents for patients with established CVD\n\n**Citations:**\n[1] Marso SP, et al. Semaglutide and Cardiovascular Outcomes. NEJM 2016. https://pubmed.ncbi.nlm.nih.gov/27633186/\n[2] Marso SP, et al. Liraglutide and Cardiovascular Outcomes. NEJM 2016. https://pubmed.ncbi.nlm.nih.gov/27303760/\n[3] Sattar N, et al. Cardiovascular outcomes with GLP-1 receptor agonists. Lancet Diabetes Endocrinol 2023. https://pubmed.ncbi.nlm.nih.gov/36966784/",
+  "citations": [
+    {
+      "number": 1,
+      "title": "Semaglutide and Cardiovascular Outcomes in Patients with Type 2 Diabetes",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/27633186/",
+      "journal": "New England Journal of Medicine"
+    }
+  ],
+  "agent_used": "literature_search_agent"
+}
+```
+
+</CodeGroup>
+
+### Patient Query Request
+
+<CodeGroup>
+
+```json Request
+{
+  "message": "Look up recent visits for patient Sarah Johnson, focusing on her diabetes management",
+  "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+  "user_id": "dr_primary_care_101"
+}
+```
+
+```json Final Response Content
+{
+  "content": "**Patient: Sarah Johnson - Recent Diabetes Management**\n\n**Recent Visit Summary:**\n\n**Visit 1 (2025-01-28):**\n- HbA1c: 7.8% (target <7%) [1]\n- Current medications: Metformin 1000mg BID, Lisinopril 10mg daily [1]\n- Blood pressure: 145/92 (elevated) [1]\n- Weight: 185 lbs (up 5 lbs from previous visit) [1]\n\n**Visit 2 (2025-01-15):**\n- Patient reports good medication compliance [2]\n- No hypoglycemic episodes reported [2]\n- Labs: Cr 1.1, K 4.2, glucose 156 [2]\n\n**Current Plan:**\n- Increased lisinopril to 20mg daily for BP control [1]\n- Recheck BP in 2 weeks [1]\n- Repeat A1C in 3 months [1]\n- Nutrition counseling referral scheduled [1]\n\n**Citations:**\n[1] Patient Log - Sarah Johnson - 2025-01-28 09:15:22\n[2] Patient Log - Sarah Johnson - 2025-01-15 14:30:45\n\n**Medical Disclaimer:** This information is for healthcare professional use only. Verify all clinical data before making treatment decisions.",
+  "agent_used": "patient_query_agent"
+}
+```
+
+</CodeGroup>
+
+## Code Examples
+
+### JavaScript/React Integration
+
+<CodeGroup>
+
+```javascript React Hook
+import { useState, useRef, useEffect } from 'react';
+
+function useNarraChat() {
+  const [messages, setMessages] = useState([]);
+  const [streaming, setStreaming] = useState(false);
+  const [currentResponse, setCurrentResponse] = useState('');
+  const abortControllerRef = useRef(null);
+
+  const sendMessage = async (message, workspaceId, userId = null, sessionId = null) => {
+    if (streaming) return; // Prevent multiple concurrent requests
+    
+    setStreaming(true);
+    setCurrentResponse('');
+    
+    // Add user message to chat
+    const userMessage = {
+      id: Date.now(),
+      role: 'user',
+      content: message,
+      timestamp: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const response = await fetch('/api/v1/chat_v3/stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.REACT_APP_API_KEY,
+        },
+        body: JSON.stringify({
+          message,
+          workspace_id: workspaceId,
+          user_id: userId,
+          session_id: sessionId,
+          debug_mode: false
+        }),
+        signal: abortControllerRef.current.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let agentUsed = '';
+      let fullResponse = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            const [eventLine, dataLine] = line.split('\n');
+            if (eventLine?.startsWith('event:') && dataLine?.startsWith('data:')) {
+              const eventType = eventLine.substring(6).trim();
+              const eventData = JSON.parse(dataLine.substring(5).trim());
+              
+              if (eventType === 'team_tool_call_started') {
+                agentUsed = eventData.agent_type;
+                setCurrentResponse(`🤖 Routing to ${agentUsed.replace('_', ' ')}...`);
+              } else if (eventType === 'team_reasoning_step') {
+                setCurrentResponse(eventData.content);
+              } else if (eventType === 'team_run_completed') {
+                fullResponse = eventData.content;
+                setCurrentResponse(fullResponse);
+                
+                // Add AI response to chat
+                const aiMessage = {
+                  id: Date.now() + 1,
+                  role: 'assistant',
+                  content: fullResponse,
+                  timestamp: new Date().toISOString(),
+                  agent_used: eventData.agent_used,
+                  citations: eventData.citations || []
+                };
+                setMessages(prev => [...prev, aiMessage]);
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Chat error:', error);
+        const errorMessage = {
+          id: Date.now() + 1,
+          role: 'assistant',
+          content: `Error: ${error.message}`,
+          timestamp: new Date().toISOString(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      }
+    } finally {
+      setStreaming(false);
+      setCurrentResponse('');
+    }
+  };
+
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
+
+  return {
+    messages,
+    streaming,
+    currentResponse,
+    sendMessage,
+    stopGeneration
+  };
+}
+
+// Usage Component
+function NarraChatInterface({ workspaceId, userId }) {
+  const { messages, streaming, currentResponse, sendMessage, stopGeneration } = useNarraChat();
+  const [inputValue, setInputValue] = useState('');
+
+  const handleSend = async () => {
+    if (!inputValue.trim() || streaming) return;
+    
+    await sendMessage(inputValue, workspaceId, userId);
+    setInputValue('');
+  };
+
+  return (
+    <div className="narra-chat">
+      <div className="messages">
+        {messages.map(msg => (
+          <div key={msg.id} className={`message ${msg.role}`}>
+            <div className="content">{msg.content}</div>
+            {msg.agent_used && (
+              <div className="agent-info">
+                Processed by: {msg.agent_used.replace('_', ' ')}
+              </div>
+            )}
+            {msg.citations && msg.citations.length > 0 && (
+              <div className="citations">
+                {msg.citations.map((citation, idx) => (
+                  <a key={idx} href={citation.url} target="_blank" rel="noopener noreferrer">
+                    [{citation.number}] {citation.title}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        
+        {streaming && currentResponse && (
+          <div className="message assistant streaming">
+            <div className="content">{currentResponse}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="input-area">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+          placeholder="Ask about medical calculations, research, or patient data..."
+          disabled={streaming}
+        />
+        <button onClick={streaming ? stopGeneration : handleSend} disabled={!inputValue.trim() && !streaming}>
+          {streaming ? 'Stop' : 'Send'}
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+```python Python Client
+import asyncio
+import aiohttp
+import json
+from typing import Optional, Dict, Any
+
+class NarraChatClient:
+    def __init__(self, api_key: str, base_url: str = "http://localhost:8001"):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.session_id = None
+    
+    async def chat_stream(
+        self, 
+        message: str, 
+        workspace_id: str, 
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        debug_mode: bool = False
+    ) -> Dict[str, Any]:
+        """Send message and process streaming response"""
+        
+        url = f"{self.base_url}/api/v1/chat_v3/stream"
+        headers = {
+            "Content-Type": "application/json",
+            "X-API-Key": self.api_key
+        }
+        
+        payload = {
+            "message": message,
+            "workspace_id": workspace_id,
+            "user_id": user_id,
+            "session_id": session_id or self.session_id,
+            "debug_mode": debug_mode
+        }
+        
+        events = []
+        final_response = None
+        agent_used = None
+        
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"HTTP {response.status}: {error_text}")
+                    
+                    print(f"💬 User: {message}")
+                    print("🤖 NarraChat: ", end="", flush=True)
+                    
+                    async for line in response.content:
+                        line = line.decode('utf-8').strip()
+                        
+                        if line.startswith('event:'):
+                            event_type = line[6:].strip()
+                        elif line.startswith('data:'):
+                            try:
+                                data = json.loads(line[5:].strip())
+                                events.append({"type": event_type, "data": data})
+                                
+                                if event_type == "team_tool_call_started":
+                                    agent_used = data.get('agent_type', '')
+                                    print(f"\n🔄 Routing to {agent_used.replace('_', ' ')}...")
+                                    
+                                elif event_type == "team_reasoning_step":
+                                    print(".", end="", flush=True)
+                                    
+                                elif event_type == "team_run_completed":
+                                    final_response = data.get('content', '')
+                                    print(f"\n\n{final_response}")
+                                    
+                                    # Display citations if present
+                                    citations = data.get('citations', [])
+                                    if citations:
+                                        print("\n📚 Citations:")
+                                        for citation in citations:
+                                            print(f"[{citation['number']}] {citation['title']}")
+                                            print(f"    {citation['url']}")
+                                    
+                                    break
+                                    
+                            except json.JSONDecodeError:
+                                continue
+        
+        except Exception as e:
+            print(f"\n❌ Error: {e}")
+            raise
+        
+        return {
+            "response": final_response,
+            "agent_used": agent_used,
+            "events": events
+        }
+
+# Usage Example
+async def main():
+    client = NarraChatClient("your-api-key")
+    
+    # Medical calculation example
+    await client.chat_stream(
+        message="Calculate BMI for patient: 170cm height, 75kg weight",
+        workspace_id="workspace_123",
+        user_id="dr_smith"
+    )
+    
+    # Literature search example
+    await client.chat_stream(
+        message="Find recent studies on statins for primary prevention",
+        workspace_id="workspace_123",
+        user_id="dr_smith"
+    )
+    
+    # Patient query example
+    await client.chat_stream(
+        message="Look up patient John Smith's recent lab results",
+        workspace_id="workspace_123", 
+        user_id="dr_smith"
+    )
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+```bash cURL Example
+# Medical Calculator Request
+curl -X POST http://localhost:8001/api/v1/chat_v3/stream \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "Calculate CHA2DS2-VASc score for 70-year-old male with diabetes and hypertension",
+    "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+    "user_id": "dr_cardiology_456"
+  }' \
+  --no-buffer
+
+# Literature Search Request  
+curl -X POST http://localhost:8001/api/v1/chat_v3/stream \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "What are the latest guidelines for blood pressure management in elderly patients?",
+    "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+    "user_id": "dr_geriatrics_789"
+  }' \
+  --no-buffer
+
+# Patient Query Request
+curl -X POST http://localhost:8001/api/v1/chat_v3/stream \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "message": "Show me recent visits for patient Maria Garcia, focusing on her diabetes management",
+    "workspace_id": "sC0ZQxmU2onbb7noTjIN", 
+    "user_id": "dr_endocrine_101"
+  }' \
+  --no-buffer
+```
+
+</CodeGroup>
+
+## Error Handling
+
+### Common Error Types
+
+<ResponseField name="invalid_workspace" type="object">
+  Workspace doesn't exist or user lacks access
+  <Expandable title="Error response">
+    <ResponseField name="error" type="string">
+      "Invalid workspace or insufficient permissions"
+    </ResponseField>
+    <ResponseField name="status_code" type="number">
+      403
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agent_routing_failure" type="object">
+  Unable to determine appropriate agent for request
+  <Expandable title="Error response">
+    <ResponseField name="error" type="string">
+      "Unable to route request to appropriate agent"
+    </ResponseField>
+    <ResponseField name="suggestion" type="string">
+      "Please rephrase your question more specifically"
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agent_processing_error" type="object">
+  Agent encountered an error during processing
+  <Expandable title="Error response">
+    <ResponseField name="error" type="string">
+      "Agent processing failed"
+    </ResponseField>
+    <ResponseField name="agent" type="string">
+      Which agent encountered the error
+    </ResponseField>
+    <ResponseField name="retry_recommended" type="boolean">
+      Whether to retry the request
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Medical Compliance & Safety
+
+### Clinical Standards
+
+<Warning>
+**Medical Disclaimer**: NarraChat is designed for healthcare professional use only. All responses include appropriate medical disclaimers and should not replace clinical judgment.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Citation Requirements" icon="quote-left">
+    Patient data queries include mandatory [1], [2], [3] style citations for clinical compliance
+  </Card>
+  <Card title="Workspace Isolation" icon="shield">
+    Complete multi-tenant data isolation ensures patient privacy and HIPAA compliance
+  </Card>
+  <Card title="Evidence Quality" icon="award">
+    Literature searches include evidence quality assessment (Level I-V) per WHO standards
+  </Card>
+  <Card title="Professional Context" icon="user-doctor">
+    All responses formatted for healthcare professional communication standards
+  </Card>
+</CardGroup>
+
+### Safety Features
+
+- **Workspace-scoped access**: All patient data strictly isolated by workspace
+- **Audit trails**: Complete logging of all interactions for compliance
+- **Medical disclaimers**: Automatic inclusion in all clinical responses
+- **Evidence verification**: Citations with direct links to source material
+- **Professional language**: Medical terminology and appropriate clinical context
+
+## Team Management
+
+### Create Team Instance
+
+```http
+POST /api/v1/chat_v3/teams
+```
+
+<ParamField body="workspace_id" type="string" required>
+  Workspace identifier for the team instance
+</ParamField>
+
+<ParamField body="user_id" type="string" optional>
+  User identifier for team customization
+</ParamField>
+
+<ParamField body="debug_mode" type="boolean" optional>
+  Enable detailed logging (default: false)
+</ParamField>
+
+### Health Check
+
+```http
+GET /api/v1/chat_v3/health
+```
+
+Returns system health status including:
+- Team configuration status
+- Agent availability
+- Database connectivity
+- External service status (Perplexity, Calculator API)
+
+## Performance Considerations
+
+### Response Times by Agent
+
+| Agent Type | Typical Response Time | Factors |
+|------------|----------------------|---------|
+| Medical Calculator | 1-3 seconds | Calculator complexity, API latency |
+| Literature Search | 3-8 seconds | Query complexity, research depth |
+| Patient Query | 2-5 seconds | Data volume, query specificity |
+
+### Optimization Features
+
+- **Intelligent caching**: Frequently accessed patient data and calculations
+- **Parallel processing**: Multiple tool calls within agents when possible
+- **Stream buffering**: Optimized for real-time user experience
+- **Session persistence**: PostgreSQL storage for conversation continuity
+
+### Rate Limits
+
+- **Requests per minute**: 60 per API key
+- **Concurrent conversations**: 5 per workspace
+- **Message length**: 4,000 characters maximum
+- **Session duration**: 2 hours active, 24 hours total
+
+## System Architecture
+
+### NarraChat vs NarraLenses
+
+| Aspect | NarraChat | NarraLenses |
+|--------|-----------|-------------|
+| **Purpose** | Interactive conversational AI | Clinical data processing |
+| **Interaction Model** | Real-time conversations | Batch log processing |
+| **Agent Count** | 3 specialized agents | 8 clinical lens agents |
+| **Use Cases** | Research, calculations, patient queries | Structured clinical data extraction |
+| **Framework Mode** | Agno "route" mode | Agno "coordinate" mode |
+| **Response Format** | Conversational with citations | Structured clinical analysis |
+
+### Integration Points
+
+<AccordionGroup>
+  <Accordion title="Shared Infrastructure">
+    **Database**: PostgreSQL via Supabase for session storage
+    **Authentication**: Same API key system as main application
+    **Logging**: Integrated with main application logging framework
+    **Configuration**: Shared settings and environment variables
+  </Accordion>
+  
+  <Accordion title="Service Dependencies">
+    **Perplexity API**: Literature search capabilities
+    **NarraLabs Calculator API**: Medical calculation engine
+    **Firebase**: Patient data access (via Patient Query Agent)
+    **OpenAI**: Team leader and reasoning capabilities
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="NarraLenses Stream Processing" href="/api-reference/narra-lenses-streaming" icon="brain">
+    Process patient logs through clinical analysis
+  </Card>
+  <Card title="Patient Data" href="/api-reference/patient-data" icon="user">
+    Direct patient data CRUD operations
+  </Card>
+  <Card title="Medical Calculators" href="/api-reference/medical-calculators" icon="calculator">
+    Direct access to medical calculation tools
+  </Card>
+  <Card title="Chat V2" href="/api-reference/chat-v2" icon="comments">
+    Legacy chat system (being replaced by NarraChat)
+  </Card>
+</CardGroup>
