@@ -39,7 +39,9 @@
               "api-reference/chat-v2-sse",
               "api-reference/patient-data",
               "api-reference/log-stream",
-              "api-reference/log-stream-v2"
+              "api-reference/log-stream-v2",
+              "api-reference/narra-lenses-streaming",
+              "api-reference/narra-lenses-retry-stream"
             ]
           },
           {

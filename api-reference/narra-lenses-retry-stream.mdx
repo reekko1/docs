@@ -1,0 +1,619 @@
+---
+title: "NarraLenses Retry Processing Stream"
+description: "Retry AI processing on existing logs with real-time streaming updates"
+---
+
+<Info>
+**For newcomers:** This endpoint retries AI processing on a log that already exists in your system. Use this when log creation succeeded but the AI analysis failed or timed out. It skips creating a new log and jumps straight to the "smart analysis" part with real-time updates.
+
+**For senior devs:** Streaming retry endpoint that validates existing log access, retrieves content from Firestore, then processes through the same Agno streaming pipeline as create-and-process. Identical SSE events but skips log creation workflow. Useful for recovery scenarios and debugging processing issues.
+</Info>
+
+## Overview
+
+The Retry Processing Stream endpoint allows you to reprocess existing logs through the NarraLenses AI system without creating duplicate entries. This is essential for recovery scenarios where log creation succeeded but AI processing failed due to timeouts, connection issues, or other transient errors.
+
+<CardGroup cols={2}>
+  <Card title="Skip Log Creation" icon="forward-fast">
+    Directly process existing logs without duplication
+  </Card>
+  <Card title="Same AI Power" icon="brain">
+    Uses identical 8-agent clinical extraction system
+  </Card>
+  <Card title="Real-time Updates" icon="bolt">
+    Server-Sent Events show processing progress
+  </Card>
+  <Card title="Error Recovery" icon="shield-check">
+    Perfect for handling transient processing failures
+  </Card>
+</CardGroup>
+
+## When to Use This Endpoint
+
+<AccordionGroup>
+  <Accordion title="Common retry scenarios">
+    **Primary use cases:**
+    - Log creation succeeded but AI processing timed out
+    - Network interruption during processing
+    - System maintenance caused processing failure
+    - Want to reprocess with updated AI models
+    - Debugging specific processing issues
+    
+    **Don't use for:**
+    - Creating new logs (use create-and-process-stream instead)
+    - Logs that don't exist yet
+    - Changing log content (create new log instead)
+  </Accordion>
+</AccordionGroup>
+
+## Authentication
+
+All NarraLenses endpoints require API key authentication.
+
+```http
+X-API-Key: your-api-key-here
+```
+
+## Retry Processing Stream
+
+### Endpoint
+
+```http
+POST /api/v1/narra-lenses/retry-processing-stream
+```
+
+### Headers
+
+```http
+Content-Type: application/json
+X-API-Key: your-api-key
+Accept: text/event-stream
+Cache-Control: no-cache
+```
+
+### Request Body
+
+<ParamField body="log_id" type="string" required>
+  Unique identifier of the existing log to reprocess
+</ParamField>
+
+<ParamField body="patient_id" type="string" required>
+  Document ID of the patient (for validation)
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  Document ID of the workspace (for validation and access control)
+</ParamField>
+
+### Request Example
+
+```json
+{
+  "log_id": "log_20250131_143022",
+  "patient_id": "CIKQW7IrJlLo90XDupPK",
+  "workspace_id": "sC0ZQxmU2onbb7noTjIN"
+}
+```
+
+### Validation Rules
+
+- All three parameters must be non-empty strings
+- Log must exist in the specified workspace and patient collection
+- User must have access to the workspace
+- Log must contain valid content for processing
+
+## Server-Sent Events Response
+
+The endpoint returns the same streaming format as the create-and-process endpoint:
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+
+event: <event_type>
+data: <JSON_payload>
+
+```
+
+### Retry-Specific Event Flow
+
+<Steps>
+  <Step title="Retry Started">
+    ```
+    event: started
+    data: {
+      "message": "Starting retry processing for existing log",
+      "log_id": "log_20250131_143022",
+      "patient_id": "CIKQW7IrJlLo90XDupPK",
+      "timestamp": "2025-01-31T14:30:45.000Z"
+    }
+    ```
+  </Step>
+
+  <Step title="Log Validation">
+    ```
+    event: log_validation
+    data: {
+      "status": "validating",
+      "message": "Validating log exists and is accessible",
+      "log_id": "log_20250131_143022"
+    }
+    ```
+  </Step>
+
+  <Step title="Log Validated">
+    ```
+    event: log_validated
+    data: {
+      "log_id": "log_20250131_143022",
+      "content_length": 1247,
+      "message": "Log validated and content retrieved"
+    }
+    ```
+  </Step>
+
+  <Step title="Processing Initialization">
+    ```
+    event: processing_init
+    data: {
+      "message": "Initializing NarraLenses team for retry processing",
+      "agents": ["vitals", "problems", "medications", "labs", "imaging", "allergies", "family_social_history", "plan"]
+    }
+    ```
+  </Step>
+</Steps>
+
+### Identical AI Processing Events
+
+After validation, the retry endpoint uses the **exact same AI processing pipeline** as create-and-process-stream:
+
+- `agno_team_started` - AI team begins processing
+- `agno_tool_started` - Individual agents receive tasks  
+- `agno_tool_completed` - Agents complete their analysis
+- `agno_team_completed` - All agents finish processing
+- `completed` - Final success with timing
+
+<Tip>
+The AI processing events are identical to the create-and-process endpoint. Refer to the [NarraLenses Stream Processing](/api-reference/narra-lenses-streaming#ai-processing-events) documentation for complete event schemas.
+</Tip>
+
+## Error Handling
+
+### Retry-Specific Errors
+
+<ResponseField name="log_not_found" type="object">
+  Log doesn't exist or access denied
+  <Expandable title="Event data">
+    <ResponseField name="error" type="string">
+      "Log {log_id} not found for patient {patient_id} in workspace {workspace_id}"
+    </ResponseField>
+    <ResponseField name="error_type" type="string">
+      "http_error"
+    </ResponseField>
+    <ResponseField name="status_code" type="number">
+      404
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="empty_log_content" type="object">
+  Log exists but has no content
+  <Expandable title="Event data">
+    <ResponseField name="error" type="string">
+      "Log {log_id} exists but content is empty"
+    </ResponseField>
+    <ResponseField name="error_type" type="string">
+      "http_error"
+    </ResponseField>
+    <ResponseField name="status_code" type="number">
+      400
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Standard Processing Errors
+
+The retry endpoint can also encounter the same processing errors as create-and-process:
+
+- `validation_error` - Invalid input parameters
+- `timeout_error` - AI processing timeout
+- `connection_error` - Service connectivity issues
+- `processing_error` - AI team processing failures
+
+<Warning>
+**Access Control**: The endpoint validates that the log belongs to the specified patient within the specified workspace. Cross-workspace or cross-patient access will result in a 404 error.
+</Warning>
+
+## Code Examples
+
+### JavaScript/React Integration
+
+<CodeGroup>
+
+```javascript React Hook
+import { useState } from 'react';
+
+function useRetryProcessing() {
+  const [retryEvents, setRetryEvents] = useState([]);
+  const [retrying, setRetrying] = useState(false);
+  const [error, setError] = useState(null);
+
+  const retryLogProcessing = async (logId, patientId, workspaceId) => {
+    setRetrying(true);
+    setError(null);
+    setRetryEvents([]);
+
+    const retryData = {
+      log_id: logId,
+      patient_id: patientId,
+      workspace_id: workspaceId
+    };
+
+    try {
+      const response = await fetch('/api/v1/narra-lenses/retry-processing-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.REACT_APP_API_KEY,
+        },
+        body: JSON.stringify(retryData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            const [eventLine, dataLine] = line.split('\n');
+            if (eventLine?.startsWith('event:') && dataLine?.startsWith('data:')) {
+              const eventType = eventLine.substring(6).trim();
+              const eventData = JSON.parse(dataLine.substring(5).trim());
+              
+              setRetryEvents(prev => [...prev, { 
+                type: eventType, 
+                data: eventData, 
+                timestamp: Date.now() 
+              }]);
+              
+              if (eventType === 'completed' || eventType.includes('error')) {
+                setRetrying(false);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+      setRetrying(false);
+    }
+  };
+
+  return { retryEvents, retrying, error, retryLogProcessing };
+}
+
+// Usage example
+function RetryProcessingButton({ logId, patientId, workspaceId }) {
+  const { retryEvents, retrying, error, retryLogProcessing } = useRetryProcessing();
+
+  const handleRetry = () => {
+    retryLogProcessing(logId, patientId, workspaceId);
+  };
+
+  return (
+    <div>
+      <button 
+        onClick={handleRetry} 
+        disabled={retrying}
+        className="retry-btn"
+      >
+        {retrying ? 'Retrying...' : 'Retry Processing'}
+      </button>
+      
+      {error && <div className="error">Error: {error}</div>}
+      
+      {retryEvents.length > 0 && (
+        <div className="retry-progress">
+          {retryEvents.map((event, idx) => (
+            <div key={idx} className={`event ${event.type}`}>
+              <strong>{event.type}:</strong> 
+              {event.data.message || JSON.stringify(event.data)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+```python Python Client
+import asyncio
+import aiohttp
+import json
+
+async def retry_log_processing(log_id, patient_id, workspace_id, api_key):
+    """Retry processing an existing log with streaming updates"""
+    
+    url = "http://localhost:8001/api/v1/narra-lenses/retry-processing-stream"
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": api_key
+    }
+    
+    retry_data = {
+        "log_id": log_id,
+        "patient_id": patient_id,
+        "workspace_id": workspace_id
+    }
+    
+    events = []
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=retry_data, headers=headers) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise Exception(f"HTTP {response.status}: {error_text}")
+                
+                print(f"🔄 Retrying processing for log: {log_id}")
+                print("=" * 60)
+                
+                async for line in response.content:
+                    line = line.decode('utf-8').strip()
+                    
+                    if line.startswith('event:'):
+                        event_type = line[6:].strip()
+                    elif line.startswith('data:'):
+                        try:
+                            data = json.loads(line[5:].strip())
+                            events.append({"type": event_type, "data": data})
+                            
+                            # Handle retry-specific events
+                            if event_type == "log_validation":
+                                print(f"🔍 Validating log: {data['log_id']}")
+                            elif event_type == "log_validated":
+                                print(f"✅ Log validated: {data['content_length']} characters")
+                            elif event_type == "agno_tool_completed":
+                                print(f"✅ {data['lens']}: {data['message']}")
+                            elif event_type == "completed":
+                                print(f"🎉 Retry completed in {data['processing_time_ms']}ms")
+                                break
+                            elif "error" in event_type:
+                                print(f"❌ Error: {data['error']}")
+                                break
+                                
+                        except json.JSONDecodeError:
+                            continue
+    
+    except Exception as e:
+        print(f"❌ Retry failed: {e}")
+        raise
+    
+    return events
+
+# Usage
+async def main():
+    events = await retry_log_processing(
+        log_id="log_20250131_143022",
+        patient_id="CIKQW7IrJlLo90XDupPK", 
+        workspace_id="sC0ZQxmU2onbb7noTjIN",
+        api_key="your-api-key"
+    )
+    print(f"Retry completed with {len(events)} events")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+```bash cURL
+curl -X POST http://localhost:8001/api/v1/narra-lenses/retry-processing-stream \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "log_id": "log_20250131_143022",
+    "patient_id": "CIKQW7IrJlLo90XDupPK",
+    "workspace_id": "sC0ZQxmU2onbb7noTjIN"
+  }' \
+  --no-buffer
+```
+
+</CodeGroup>
+
+## Workflow Comparison
+
+### Create-and-Process vs Retry Processing
+
+| Step | Create-and-Process | Retry Processing |
+|------|-------------------|------------------|
+| **1. Validation** | Validates input parameters | Validates log exists and is accessible |
+| **2. Log Handling** | Creates new log in Firestore | Retrieves existing log content |
+| **3. AI Processing** | ✅ Identical Agno streaming | ✅ Identical Agno streaming |
+| **4. Results** | Returns new log_id | Uses existing log_id |
+
+<Info>
+**Key Insight**: Both endpoints use the identical AI processing pipeline after their respective validation/setup phases. The only difference is log creation vs log retrieval.
+</Info>
+
+## Performance Considerations
+
+### When Retry is Faster
+
+Retry processing can be faster than create-and-process because:
+- **Skips log creation** - No Firestore write operation
+- **Immediate validation** - Quick existence check vs content validation
+- **No media processing** - Media was already processed during creation
+
+### Expected Performance
+
+| Scenario | Retry Time vs Original |
+|----------|----------------------|
+| Simple retry | 10-20% faster |
+| Complex logs | 5-10% faster |
+| Network timeout retry | Same as original |
+| Processing error retry | Same as original |
+
+## Best Practices
+
+### Retry Strategy
+
+<CodeGroup>
+
+```javascript Exponential Backoff
+class RetryManager {
+  constructor() {
+    this.retryDelays = [1000, 2000, 4000, 8000]; // milliseconds
+    this.maxRetries = 4;
+  }
+
+  async retryWithBackoff(retryFunction, logId, patientId, workspaceId) {
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      try {
+        return await retryFunction(logId, patientId, workspaceId);
+      } catch (error) {
+        if (attempt === this.maxRetries - 1) throw error;
+        
+        // Don't retry validation errors
+        if (error.message.includes('404') || error.message.includes('validation')) {
+          throw error;
+        }
+        
+        const delay = this.retryDelays[attempt];
+        console.log(`Retry attempt ${attempt + 1} failed, waiting ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+}
+```
+
+```python Python Retry Logic
+import asyncio
+from typing import Optional
+
+class RetryConfig:
+    def __init__(self):
+        self.max_retries = 3
+        self.base_delay = 1.0
+        self.max_delay = 30.0
+        
+    def should_retry(self, error_type: str) -> bool:
+        """Determine if error type should trigger retry"""
+        non_retryable = ['validation_error', 'http_error']
+        return error_type not in non_retryable
+    
+    async def retry_with_backoff(self, retry_func, *args, **kwargs):
+        """Implement exponential backoff retry logic"""
+        for attempt in range(self.max_retries):
+            try:
+                return await retry_func(*args, **kwargs)
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    raise
+                
+                # Check if we should retry based on error
+                error_msg = str(e).lower()
+                if 'not found' in error_msg or 'validation' in error_msg:
+                    raise  # Don't retry these errors
+                
+                delay = min(self.base_delay * (2 ** attempt), self.max_delay)
+                print(f"Attempt {attempt + 1} failed, retrying in {delay}s...")
+                await asyncio.sleep(delay)
+```
+
+</CodeGroup>
+
+### Error Handling Guidelines
+
+1. **Don't retry validation errors** - Fix the request instead
+2. **Don't retry 404 errors** - Log doesn't exist or no access
+3. **Do retry timeout/connection errors** - These are transient
+4. **Limit retry attempts** - Avoid infinite loops
+5. **Use exponential backoff** - Prevent system overload
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Log not found (404 error)">
+    **Possible causes:**
+    - Log ID doesn't exist in the system
+    - Log exists but in different workspace
+    - Log exists but for different patient
+    - User doesn't have workspace access
+    
+    **Solutions:**
+    - Verify log ID is correct
+    - Check workspace_id matches log creation
+    - Ensure patient_id matches log owner
+    - Verify API key has workspace access
+  </Accordion>
+  
+  <Accordion title="Empty log content (400 error)">
+    **Possible causes:**
+    - Log was created but content field is empty
+    - Log content was corrupted or deleted
+    - Database consistency issue
+    
+    **Solutions:**
+    - Check original log creation process
+    - Verify log content in database
+    - Contact support for data recovery
+  </Accordion>
+  
+  <Accordion title="Same processing errors as original">
+    **Possible causes:**
+    - Systemic issue not resolved
+    - Log content causes specific agent failures
+    - Model or service limitations
+    
+    **Solutions:**
+    - Check system status and service health
+    - Try breaking log into smaller pieces
+    - Contact support with log_id for investigation
+  </Accordion>
+</AccordionGroup>
+
+## Rate Limits
+
+The retry endpoint shares the same rate limits as create-and-process:
+
+- **Requests per minute**: 60 per API key
+- **Concurrent connections**: 10 per API key
+- **Maximum log size**: 50,000 characters (validated at original creation)
+
+<Tip>
+**Rate Limit Strategy**: Since retry processing doesn't create new data, consider implementing a separate rate limit tier for retry operations to allow more aggressive retry strategies.
+</Tip>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="NarraLenses Stream Processing" href="/api-reference/narra-lenses-streaming" icon="plus">
+    Create new logs and process with streaming
+  </Card>
+  <Card title="Patient Logs" href="/api-reference/patient-logs" icon="file-medical">
+    CRUD operations for patient log entries
+  </Card>
+  <Card title="Log Processing Status" href="/api-reference/log-processing-status" icon="chart-line">
+    Check processing status and history
+  </Card>
+  <Card title="Error Monitoring" href="/api-reference/error-monitoring" icon="triangle-exclamation">
+    Track and analyze processing failures
+  </Card>
+</CardGroup>

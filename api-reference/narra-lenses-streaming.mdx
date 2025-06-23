@@ -1,0 +1,626 @@
+---
+title: "NarraLenses Stream Processing"
+description: "Real-time AI-powered clinical data extraction with Server-Sent Events streaming"
+---
+
+<Info>
+**For newcomers:** This endpoint creates a patient log entry and immediately processes it through our AI clinical lens system with real-time updates. Think of it as your "smart medical scribe" that extracts structured clinical data (vitals, medications, problems, etc.) from free-text notes and streams progress updates as it works.
+
+**For senior devs:** Server-Sent Events streaming endpoint that orchestrates log creation → Agno team processing → real-time lens updates. Uses native Agno streaming with `stream=True` and `stream_intermediate_steps=True` for real-time event processing. All processing scoped to workspace_id with Firebase persistence.
+</Info>
+
+## Overview
+
+The NarraLenses Stream Processing endpoint combines log creation with real-time AI analysis, providing immediate feedback as clinical data is extracted and organized. This streaming approach enables responsive UIs that show processing progress and results as they happen.
+
+<CardGroup cols={2}>
+  <Card title="Real-time Processing" icon="bolt">
+    Server-Sent Events provide instant feedback on extraction progress
+  </Card>
+  <Card title="Multi-domain Analysis" icon="brain">
+    8 specialized AI agents extract vitals, medications, problems, labs, imaging, allergies, family history, and care plans
+  </Card>
+  <Card title="Context-aware Updates" icon="link">
+    Agents have access to existing patient data to avoid duplicates and make informed updates
+  </Card>
+  <Card title="Native Streaming" icon="gauge">
+    Real-time Agno event streaming with intermediate step visibility
+  </Card>
+</CardGroup>
+
+## Authentication
+
+All NarraLenses endpoints require API key authentication.
+
+```http
+X-API-Key: your-api-key-here
+```
+
+## Create and Process Stream
+
+<AccordionGroup>
+  <Accordion title="Why streaming instead of traditional processing?">
+    Traditional endpoints return results only after complete processing (15-30 seconds for complex logs). Streaming provides:
+    - **Immediate feedback** when log is saved
+    - **Progress updates** as each AI agent works
+    - **Early error detection** for faster debugging
+    - **Responsive UX** with live progress indicators
+    
+    This is especially important for complex clinical notes that may take 30+ seconds to fully process.
+  </Accordion>
+</AccordionGroup>
+
+### Endpoint
+
+```http
+POST /api/v1/narra-lenses/create-and-process-stream
+```
+
+### Headers
+
+```http
+Content-Type: application/json
+X-API-Key: your-api-key
+Accept: text/event-stream
+Cache-Control: no-cache
+```
+
+### Request Body
+
+<ParamField body="patient_id" type="string" required>
+  Document ID of the patient in Firestore
+</ParamField>
+
+<ParamField body="user_id" type="string" required>
+  Document ID of the user creating the log
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  Document ID of the workspace for data isolation
+</ParamField>
+
+<ParamField body="log" type="string" required>
+  Raw text content of the clinical log (1-50,000 characters)
+</ParamField>
+
+<ParamField body="media" type="array" optional>
+  List of media URLs associated with the log entry
+  <Expandable title="Media object structure" defaultOpen>
+    <ParamField body="media[].url" type="string" required>
+      URL to the media file
+    </ParamField>
+    <ParamField body="media[].type" type="string" required>
+      Media type: `image`, `document`, or `audio`
+    </ParamField>
+    <ParamField body="media[].name" type="string" optional>
+      Display name for the media file
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Request Example
+
+```json
+{
+  "patient_id": "CIKQW7IrJlLo90XDupPK",
+  "user_id": "dr_smith_123",
+  "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+  "log": "Patient presents with hypertension. BP: 145/92 (elevated from last visit 130/80). Weight: 185 lbs (up 5 lbs). A1C: 7.8%. Patient reports good compliance with metformin 1000mg BID and lisinopril 10mg daily. Increasing lisinopril to 20mg daily. Discussed dietary modifications. Labs show Cr 1.1, K 4.2, glucose 156. Plan: Recheck BP in 2 weeks, repeat A1C in 3 months.",
+  "media": []
+}
+```
+
+## Server-Sent Events Response
+
+The endpoint returns a stream of Server-Sent Events with the following format:
+
+```
+Content-Type: text/event-stream
+Cache-Control: no-cache
+Connection: keep-alive
+
+event: <event_type>
+data: <JSON_payload>
+
+```
+
+### Processing Lifecycle Events
+
+<Steps>
+  <Step title="Processing Started">
+    ```
+    event: started
+    data: {
+      "message": "Starting log creation and processing",
+      "patient_id": "CIKQW7IrJlLo90XDupPK",
+      "timestamp": "2025-01-31T10:00:00.000Z"
+    }
+    ```
+  </Step>
+
+  <Step title="Log Creation">
+    ```
+    event: log_creation
+    data: {
+      "status": "creating",
+      "message": "Creating log entry"
+    }
+    ```
+  </Step>
+
+  <Step title="Log Created">
+    ```
+    event: log_created
+    data: {
+      "log_id": "log_456",
+      "created_at": "2025-01-31T10:00:01.000Z",
+      "message": "Log created successfully"
+    }
+    ```
+  </Step>
+
+  <Step title="AI Team Initialization">
+    ```
+    event: processing_init
+    data: {
+      "message": "Initializing NarraLenses team",
+      "agents": ["vitals", "problems", "medications", "labs", "imaging", "allergies", "family_social_history", "plan"]
+    }
+    ```
+  </Step>
+</Steps>
+
+### AI Processing Events
+
+<ResponseField name="agno_team_started" type="object">
+  AI team processing has begun
+  <Expandable title="Event data">
+    <ResponseField name="message" type="string">
+      "Team run started"
+    </ResponseField>
+    <ResponseField name="model" type="string">
+      AI model being used (e.g., "gpt-4.1-nano-2025-04-14")
+    </ResponseField>
+    <ResponseField name="model_provider" type="string">
+      Model provider (e.g., "openai")
+    </ResponseField>
+    <ResponseField name="team_id" type="string">
+      "narra-lenses-medical-team"
+    </ResponseField>
+    <ResponseField name="run_id" type="string">
+      Unique run identifier
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agno_tool_started" type="object">
+  A clinical agent is being assigned a task
+  <Expandable title="Event data">
+    <ResponseField name="message" type="string">
+      Human-readable task assignment message
+    </ResponseField>
+    <ResponseField name="lens" type="string">
+      Agent name: "Vitals", "Medications", "Problems", "Labs", "Imaging", "Allergies", "Family/Social", "Care Plan"
+    </ResponseField>
+    <ResponseField name="task_description" type="string">
+      Detailed description of the task being assigned to the agent
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agno_tool_completed" type="object">
+  A clinical agent has completed its task
+  <Expandable title="Event data">
+    <ResponseField name="message" type="string">
+      Result summary from the agent
+    </ResponseField>
+    <ResponseField name="lens" type="string">
+      Agent name that completed the task
+    </ResponseField>
+    <ResponseField name="success" type="boolean">
+      Whether the agent task completed successfully
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agno_team_completed" type="object">
+  All agents have finished processing
+  <Expandable title="Event data">
+    <ResponseField name="message" type="string">
+      "Team run completed"
+    </ResponseField>
+    <ResponseField name="content" type="string">
+      Synthesized summary of all agent results
+    </ResponseField>
+    <ResponseField name="member_responses_count" type="number">
+      Number of agents that provided responses
+    </ResponseField>
+    <ResponseField name="team_id" type="string">
+      Team identifier
+    </ResponseField>
+    <ResponseField name="run_id" type="string">
+      Run identifier
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="completed" type="object">
+  Final success event with timing information
+  <Expandable title="Event data">
+    <ResponseField name="success" type="boolean">
+      true
+    </ResponseField>
+    <ResponseField name="log_id" type="string">
+      ID of the created log
+    </ResponseField>
+    <ResponseField name="patient_id" type="string">
+      Patient identifier
+    </ResponseField>
+    <ResponseField name="processing_time_ms" type="number">
+      Total processing time in milliseconds
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      "Processing completed successfully"
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Clinical Agents
+
+The system uses 8 specialized AI agents, each focused on a specific clinical domain:
+
+<CardGroup cols={2}>
+  <Card title="Vitals Agent" icon="heart-pulse">
+    Blood pressure, heart rate, temperature, respiratory rate, oxygen saturation, weight, height
+  </Card>
+  <Card title="Problems Agent" icon="stethoscope">
+    Current diagnoses, active problems, symptoms, clinical conditions
+  </Card>
+  <Card title="Medications Agent" icon="pills">
+    Current medications, dosage changes, new prescriptions, discontinued medications
+  </Card>
+  <Card title="Labs Agent" icon="flask">
+    Laboratory results, reference ranges, abnormal findings, trending values
+  </Card>
+  <Card title="Imaging Agent" icon="x-ray">
+    X-rays, CT, MRI findings, ultrasound results, diagnostic imaging reports
+  </Card>
+  <Card title="Allergies Agent" icon="triangle-exclamation">
+    Allergens, reaction types, severity levels, onset dates
+  </Card>
+  <Card title="Family/Social Agent" icon="users">
+    Family medical history, social determinants of health, lifestyle factors
+  </Card>
+  <Card title="Care Plan Agent" icon="calendar-check">
+    Follow-up instructions, treatment goals, care coordination, referrals
+  </Card>
+</CardGroup>
+
+## Error Handling
+
+### Error Event Types
+
+<ResponseField name="validation_error" type="object">
+  Input validation failed
+  <Expandable title="Event data">
+    <ResponseField name="error" type="string">
+      Validation error message
+    </ResponseField>
+    <ResponseField name="processing_time_ms" type="number">
+      Time elapsed before error
+    </ResponseField>
+    <ResponseField name="patient_id" type="string">
+      Patient ID from request
+    </ResponseField>
+    <ResponseField name="error_type" type="string">
+      "validation_error"
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="timeout_error" type="object">
+  Processing exceeded time limit
+  <Expandable title="Event data">
+    <ResponseField name="error" type="string">
+      "Processing timed out - please try again"
+    </ResponseField>
+    <ResponseField name="processing_time_ms" type="number">
+      Time elapsed (typically around 120000ms)
+    </ResponseField>
+    <ResponseField name="patient_id" type="string">
+      Patient ID from request
+    </ResponseField>
+    <ResponseField name="error_type" type="string">
+      "timeout_error"
+    </ResponseField>
+    <ResponseField name="retry_recommended" type="boolean">
+      true
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="connection_error" type="object">
+  Network or service connectivity issues
+  <Expandable title="Event data">
+    <ResponseField name="error" type="string">
+      "Failed to connect to required services"
+    </ResponseField>
+    <ResponseField name="error_type" type="string">
+      "connection_error"
+    </ResponseField>
+    <ResponseField name="retry_recommended" type="boolean">
+      true
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Error Recovery
+
+<Warning>
+**Retry Logic**: Implement exponential backoff for errors with `retry_recommended: true`. Start with 1 second delay, then 2s, 4s, 8s for subsequent retries.
+</Warning>
+
+| Error Type | Retry Recommended | Action |
+|------------|-------------------|---------|
+| `validation_error` | No | Fix input data and retry |
+| `http_error` | Depends on status code | Check error details |
+| `connection_error` | Yes | Retry after delay |
+| `timeout_error` | Yes | Retry or reduce log size |
+| `processing_error` | Yes | Retry or contact support |
+
+## Code Examples
+
+### JavaScript/React Integration
+
+<CodeGroup>
+
+```javascript React Hooks
+import { useState, useEffect } from 'react';
+
+function useNarraLensesStream() {
+  const [events, setEvents] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const processLog = async (logData) => {
+    setProcessing(true);
+    setError(null);
+    setEvents([]);
+
+    try {
+      const response = await fetch('/api/v1/narra-lenses/create-and-process-stream', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': process.env.REACT_APP_API_KEY,
+        },
+        body: JSON.stringify(logData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim()) {
+            const [eventLine, dataLine] = line.split('\n');
+            if (eventLine?.startsWith('event:') && dataLine?.startsWith('data:')) {
+              const eventType = eventLine.substring(6).trim();
+              const eventData = JSON.parse(dataLine.substring(5).trim());
+              
+              setEvents(prev => [...prev, { type: eventType, data: eventData, timestamp: Date.now() }]);
+              
+              if (eventType === 'completed' || eventType.includes('error')) {
+                setProcessing(false);
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      setError(err.message);
+      setProcessing(false);
+    }
+  };
+
+  return { events, processing, error, processLog };
+}
+```
+
+```javascript EventSource Alternative
+// Alternative using EventSource API (requires POST-to-GET proxy)
+function useEventSourceStream(logData) {
+  const [events, setEvents] = useState([]);
+  const [processing, setProcessing] = useState(false);
+
+  useEffect(() => {
+    if (!logData) return;
+    
+    setProcessing(true);
+    const eventSource = new EventSource(`/api/v1/narra-lenses/stream-proxy?${new URLSearchParams(logData)}`, {
+      headers: {
+        'X-API-Key': process.env.REACT_APP_API_KEY
+      }
+    });
+
+    eventSource.addEventListener('agno_tool_completed', (event) => {
+      const data = JSON.parse(event.data);
+      setEvents(prev => [...prev, { type: 'tool_completed', data }]);
+    });
+
+    eventSource.addEventListener('completed', (event) => {
+      setProcessing(false);
+      eventSource.close();
+    });
+
+    eventSource.onerror = (error) => {
+      console.error('Stream error:', error);
+      setProcessing(false);
+      eventSource.close();
+    };
+
+    return () => eventSource.close();
+  }, [logData]);
+
+  return { events, processing };
+}
+```
+
+```python Python Client
+import asyncio
+import aiohttp
+import json
+
+async def stream_log_processing(log_data, api_key):
+    """Stream log processing with real-time updates"""
+    url = "http://localhost:8001/api/v1/narra-lenses/create-and-process-stream"
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-Key": api_key
+    }
+    
+    events = []
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=log_data, headers=headers) as response:
+            if response.status != 200:
+                raise Exception(f"HTTP {response.status}: {await response.text()}")
+            
+            async for line in response.content:
+                line = line.decode('utf-8').strip()
+                
+                if line.startswith('event:'):
+                    event_type = line[6:].strip()
+                elif line.startswith('data:'):
+                    try:
+                        data = json.loads(line[5:].strip())
+                        events.append({"type": event_type, "data": data})
+                        
+                        # Handle specific events
+                        if event_type == "agno_tool_completed":
+                            print(f"✅ {data['lens']}: {data['message']}")
+                        elif event_type == "completed":
+                            print(f"🎉 Processing completed in {data['processing_time_ms']}ms")
+                            break
+                        elif "error" in event_type:
+                            print(f"❌ Error: {data['error']}")
+                            break
+                            
+                    except json.JSONDecodeError:
+                        continue
+    
+    return events
+
+# Usage
+async def main():
+    log_data = {
+        "patient_id": "patient_123",
+        "user_id": "user_456", 
+        "workspace_id": "workspace_789",
+        "log": "Patient BP: 140/90, started on lisinopril 10mg daily"
+    }
+    
+    events = await stream_log_processing(log_data, "your-api-key")
+    print(f"Received {len(events)} events")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+```bash cURL
+curl -X POST http://localhost:8001/api/v1/narra-lenses/create-and-process-stream \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "patient_id": "CIKQW7IrJlLo90XDupPK",
+    "user_id": "dr_smith_123",
+    "workspace_id": "sC0ZQxmU2onbb7noTjIN",
+    "log": "Patient reports mild headache and took acetaminophen 500mg at 2pm. BP: 120/80, HR: 72, Temp: 98.6F. Continue current medications. Follow up in 2 weeks."
+  }' \
+  --no-buffer
+```
+
+</CodeGroup>
+
+## Performance Considerations
+
+### Processing Times
+
+Average processing times by log complexity:
+
+| Log Type | Character Count | Processing Time | Agents Triggered |
+|----------|----------------|-----------------|------------------|
+| Simple vitals | < 200 | 2-4 seconds | 1-2 agents |
+| Standard visit note | 200-1000 | 4-8 seconds | 3-5 agents |
+| Complex consultation | 1000-5000 | 8-15 seconds | 5-8 agents |
+| Comprehensive H&P | > 5000 | 15-30 seconds | All 8 agents |
+
+### Optimization Features
+
+<Tip>
+**Native Agno Streaming**: The system uses Agno's built-in streaming capabilities with `stream=True` and `stream_intermediate_steps=True` for real-time event processing and immediate feedback.
+</Tip>
+
+- **Context-aware**: Agents receive existing patient data to avoid duplicate processing
+- **Intelligent delegation**: Team coordinator only assigns tasks to relevant agents
+- **Optimized models**: Agent-specific model configuration for cost and performance optimization
+- **Stream buffering disabled**: `X-Accel-Buffering: no` header ensures real-time delivery
+
+### Rate Limits
+
+- **Requests per minute**: 60 per API key
+- **Concurrent connections**: 10 per API key  
+- **Maximum log size**: 50,000 characters
+- **Media attachments**: 10 per request, 10MB each
+
+## Retry Processing Endpoint
+
+For cases where log creation succeeded but AI processing failed, use the retry endpoint:
+
+```http
+POST /api/v1/narra-lenses/retry-processing-stream
+```
+
+<ParamField body="log_id" type="string" required>
+  ID of the existing log to reprocess
+</ParamField>
+
+<ParamField body="patient_id" type="string" required>
+  Patient identifier for validation
+</ParamField>
+
+<ParamField body="workspace_id" type="string" required>
+  Workspace identifier for validation
+</ParamField>
+
+This endpoint skips log creation and jumps directly to AI processing with the same streaming events.
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Chat V2" href="/api-reference/chat-v2" icon="comments">
+    Conversational AI with clinical tool access
+  </Card>
+  <Card title="Patient Logs" href="/api-reference/patient-logs" icon="file-medical">
+    CRUD operations for patient log entries
+  </Card>
+  <Card title="Patient Management" href="/api-reference/patients" icon="user-doctor">
+    Patient creation and data management
+  </Card>
+  <Card title="Log Processing" href="/api-reference/log-processing" icon="gears">
+    Non-streaming log processing endpoint
+  </Card>
+</CardGroup>
