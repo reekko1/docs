@@ -40,8 +40,13 @@
               "api-reference/patient-data",
               "api-reference/log-stream",
               "api-reference/log-stream-v2",
-              "api-reference/narra-lenses-streaming",
-              "api-reference/narra-lenses-retry-stream"
+              {
+                "group": "NarraLenses",
+                "pages": [
+                  "api-reference/narra-lenses-streaming",
+                  "api-reference/narra-lenses-retry-stream"
+                ]
+              }
             ]
           },
           {
