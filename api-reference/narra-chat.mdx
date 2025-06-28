@@ -55,7 +55,7 @@ Cache-Control: no-cache
 
 ### Request Body
 
-<ParamField body="message" type="string" required>
+<ParamField body="prompt" type="string" required>
   The user's message or question for the AI team
 </ParamField>
 
@@ -71,19 +71,43 @@ Cache-Control: no-cache
   Session identifier for conversation continuity. Auto-generated if not provided.
 </ParamField>
 
-<ParamField body="debug_mode" type="boolean" optional>
-  Enable detailed logging and debugging information (default: false)
+<ParamField body="images" type="array" optional>
+  Array of image objects for multi-modal queries. Each image contains a URL string.
+</ParamField>
+
+<ParamField body="use_search" type="boolean" optional>
+  Force the use of online search tools for research queries (default: false)
+</ParamField>
+
+<ParamField body="patient_id" type="string" optional>
+  Patient identifier to add clinical context to the conversation
+</ParamField>
+
+<ParamField body="user_profile_brief" type="string" optional>
+  Brief user profile information for personalized responses
+</ParamField>
+
+<ParamField body="is_premium" type="boolean" optional>
+  Premium user status for enhanced rate limiting (default: false)
 </ParamField>
 
 ### Request Example
 
 ```json
 {
-  "message": "Calculate the CHA2DS2-VASc score for a 65-year-old female with diabetes and hypertension",
+  "prompt": "Calculate the CHA2DS2-VASc score for a 65-year-old female with diabetes and hypertension",
   "workspace_id": "sC0ZQxmU2onbb7noTjIN",
   "user_id": "dr_smith_123",
   "session_id": "chat_session_456",
-  "debug_mode": false
+  "images": [
+    {
+      "url": "https://example.com/medical-chart.jpg"
+    }
+  ],
+  "use_search": false,
+  "patient_id": "patient_123",
+  "user_profile_brief": "Cardiologist with 10 years experience",
+  "is_premium": true
 }
 ```
 
@@ -117,48 +141,59 @@ NarraChat intelligently routes requests to three specialized agents based on the
 ### Medical Calculator Agent
 
 <AccordionGroup>
-  <Accordion title="32+ Medical Calculators Available">
+  <Accordion title="33 Medical Calculators Available">
     **Purpose**: Comprehensive medical calculations and diagnostic interpreters
     
     **Integration**: NarraLabs Medical Calculator API
     
-    **Calculator Categories:**
+    **Standard Calculators (30 calculators):**
     
     **Cardiovascular**
-    - CHA₂DS₂-VASc (stroke risk in atrial fibrillation)
+    - CHA₂DS₂-VASc Score (stroke risk in atrial fibrillation)
     - TIMI Risk Score (acute coronary syndromes)
     - GRACE Score (6-month mortality post-ACS)
-    - Wells Score (pulmonary embolism probability)
+    - Mean Arterial Pressure (MAP)
     
     **Nephrology**
     - eGFR (estimated glomerular filtration rate)
     - Creatinine Clearance (Cockcroft-Gault)
-    - Fluid Deficit Calculation
-    - Fractional Excretion of Sodium
+    - Free Water Deficit Calculation
+    - Sodium Deficit Calculation
+    - Corrected Calcium
     
     **Neurology**
-    - Glasgow Coma Scale
+    - Glasgow Coma Scale (GCS)
     - NIHSS (National Institutes of Health Stroke Scale)
     - ICH Volume (intracerebral hemorrhage)
-    - mRS (modified Rankin Scale)
     
     **Critical Care**
     - MEWS (Modified Early Warning Score)
     - PEWS (Pediatric Early Warning Score)
     - qSOFA (quick Sequential Organ Failure Assessment)
     - Oxygenation Index
+    - Morse Fall Scale
     
     **Metabolism & Nutrition**
     - BMI (Body Mass Index)
     - BSA (Body Surface Area)
     - IBW (Ideal Body Weight)
     - Glucose Infusion Rate
+    - AA Gradient
+    - Anion Gap
     
-    **AI-Powered Interpreters**
+    **Specialized Scores**
+    - MELD Score (liver disease severity)
+    - Wells DVT Score
+    - EOS Risk (early-onset sepsis)
+    - GAD-7 (anxiety assessment)
+    - KDPI (kidney donor profile index)
+    - R Factor (liver injury assessment)
+    - Neonatal Measurements
+    
+    **AI-Powered Interpreters (3 calculators):**
     - CSF Analysis Interpretation
-    - ABG (Arterial Blood Gas) Analysis
-    - Hepatitis B Serology Panel
-    - Basic Metabolic Panel Analysis
+    - ABG/VBG (Arterial/Venous Blood Gas) Analysis
+    - Hepatitis B Serology Panel Interpretation
   </Accordion>
 </AccordionGroup>
 
@@ -242,87 +277,209 @@ Content-Type: text/event-stream
 Cache-Control: no-cache
 Connection: keep-alive
 
-event: <event_type>
 data: <JSON_payload>
 
 ```
 
 ### Core Event Types
 
-<ResponseField name="team_run_started" type="object">
+<ResponseField name="session_info" type="object">
+  Session information sent immediately upon connection
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "session_info"
+    </ResponseField>
+    <ResponseField name="sessionId" type="string">
+      Unique session identifier for the conversation
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="run_started" type="object">
   Conversation processing begins
   <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "run_started"
+    </ResponseField>
     <ResponseField name="message" type="string">
-      "Team run started"
-    </ResponseField>
-    <ResponseField name="team_id" type="string">
-      "narra-chat-medical-team"
-    </ResponseField>
-    <ResponseField name="run_id" type="string">
-      Unique run identifier
-    </ResponseField>
-    <ResponseField name="model" type="string">
-      AI model being used
+      "Team is starting to process your request..."
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="team_tool_call_started" type="object">
+<ResponseField name="tool_started" type="object">
   Agent routing decision made
   <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "tool_started"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      User-friendly routing message (e.g., "Routing to Literature Search Agent")
+    </ResponseField>
     <ResponseField name="tool_name" type="string">
-      Name of the agent being called
+      Name of the tool or agent being called
     </ResponseField>
-    <ResponseField name="agent_type" type="string">
-      "literature_search_agent", "medical_calculator_agent", or "patient_query_agent"
-    </ResponseField>
-    <ResponseField name="routing_reason" type="string">
-      Why this agent was selected
+    <ResponseField name="member_name" type="string">
+      Target agent name (when routing between team members)
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="team_tool_call_completed" type="object">
+<ResponseField name="tool_completed" type="object">
   Agent has completed processing
   <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "tool_completed"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Completion message (e.g., "Completed routing to Literature Search Agent")
+    </ResponseField>
     <ResponseField name="tool_name" type="string">
-      Name of the completed agent
+      Name of the completed tool or agent
     </ResponseField>
-    <ResponseField name="success" type="boolean">
-      Whether the agent task completed successfully
-    </ResponseField>
-    <ResponseField name="result_summary" type="string">
-      Brief summary of agent results
+    <ResponseField name="member_name" type="string">
+      Target agent name (when routing between team members)
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="team_reasoning_step" type="object">
-  Team leader's reasoning process
+<ResponseField name="agent_reasoning_started" type="object">
+  Agent decision-making process begins
   <Expandable title="Event data">
-    <ResponseField name="content" type="string">
-      Current reasoning step content
+    <ResponseField name="type" type="string">
+      "agent_reasoning_started"
     </ResponseField>
-    <ResponseField name="reasoning_type" type="string">
-      "analysis", "routing", "synthesis"
+    <ResponseField name="message" type="string">
+      "Agent is thinking..."
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="team_run_completed" type="object">
-  Final response ready
+<ResponseField name="agent_reasoning_step" type="object">
+  Individual agent reasoning steps
   <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "agent_reasoning_step"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Formatted reasoning message
+    </ResponseField>
     <ResponseField name="content" type="string">
-      Complete formatted response
+      Raw reasoning step content
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agent_reasoning_completed" type="object">
+  Agent reasoning process finished
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "agent_reasoning_completed"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      "Agent reasoning complete."
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="content" type="object">
+  Main response content from the AI team
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "content"
+    </ResponseField>
+    <ResponseField name="content" type="string">
+      Complete formatted response content
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="run_completed" type="object">
+  Team processing completed
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "run_completed"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      "Team has completed processing your request."
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agent_tool_started" type="object">
+  Individual agent tool usage begins
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "agent_tool_started"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Tool usage message (e.g., "Agent using tool: calculator_api")
+    </ResponseField>
+    <ResponseField name="tool_name" type="string">
+      Name of the specific tool being used
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="agent_tool_completed" type="object">
+  Individual agent tool usage completed
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "agent_tool_completed"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Tool completion message
+    </ResponseField>
+    <ResponseField name="tool_name" type="string">
+      Name of the completed tool
+    </ResponseField>
+    <ResponseField name="result" type="object">
+      Tool execution result (when available)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="citations" type="object">
+  Literature citations from research agents
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "citations"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Citation count message
     </ResponseField>
     <ResponseField name="citations" type="array">
-      Array of citation objects with URLs and sources
+      Array of citation URL strings
     </ResponseField>
-    <ResponseField name="agent_used" type="string">
-      Which agent processed the request
+    <ResponseField name="count" type="number">
+      Number of citations found
     </ResponseField>
-    <ResponseField name="processing_time_ms" type="number">
-      Total processing time
+    <ResponseField name="source" type="string">
+      Citation source (e.g., "perplexity")
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="error" type="object">
+  Error occurred during processing
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "error"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      Error description
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="cancelled" type="object">
+  Request was cancelled
+  <Expandable title="Event data">
+    <ResponseField name="type" type="string">
+      "cancelled"
+    </ResponseField>
+    <ResponseField name="message" type="string">
+      "Request was cancelled."
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -335,52 +492,50 @@ data: <JSON_payload>
 
 ```json Request
 {
-  "message": "Calculate CHA2DS2-VASc score for 68-year-old female with diabetes, hypertension, and history of stroke",
+  "prompt": "Calculate CHA2DS2-VASc score for 68-year-old female with diabetes, hypertension, and history of stroke",
   "workspace_id": "sC0ZQxmU2onbb7noTjIN",
   "user_id": "dr_cardiology_456"
 }
 ```
 
 ```json Streaming Response Events
-// Event 1: Processing starts
-{
-  "event": "team_run_started",
-  "data": {
-    "message": "Team run started",
-    "team_id": "narra-chat-medical-team",
-    "model": "gpt-4.1-mini-2025-04-14"
-  }
+// Event 1: Session info
+data: {"type": "session_info", "sessionId": "chat_session_456"}
+
+// Event 2: Processing starts
+data: {"type": "run_started", "message": "Team is starting to process your request..."}
+
+// Event 3: Route to calculator agent
+data: {
+  "type": "tool_started",
+  "message": "Routing to Medical Calculator Agent",
+  "tool_name": "forward_task_to_member",
+  "member_name": "Medical Calculator Agent"
 }
 
-// Event 2: Route to calculator agent
-{
-  "event": "team_tool_call_started", 
-  "data": {
-    "tool_name": "medical_calculator_agent",
-    "agent_type": "medical_calculator_agent",
-    "routing_reason": "Request contains specific medical calculator (CHA2DS2-VASc) with patient parameters"
-  }
+// Event 4: Agent tool usage
+data: {
+  "type": "agent_tool_started",
+  "message": "Agent using tool: calculate_medical_result",
+  "tool_name": "calculate_medical_result"
 }
 
-// Event 3: Calculator processing complete
-{
-  "event": "team_tool_call_completed",
-  "data": {
-    "tool_name": "medical_calculator_agent",
-    "success": true,
-    "result_summary": "CHA2DS2-VASc score calculated: 6 points (high stroke risk)"
-  }
+// Event 5: Tool completion
+data: {
+  "type": "agent_tool_completed",
+  "message": "Agent completed tool: calculate_medical_result",
+  "tool_name": "calculate_medical_result",
+  "result": {"score": 6, "interpretation": "High Risk"}
 }
 
-// Event 4: Final response
-{
-  "event": "team_run_completed",
-  "data": {
-    "content": "**CHA₂DS₂-VASc Score: 6 points (High Risk)**\n\nBreakdown:\n- Age 65-74: 1 point\n- Female: 1 point\n- Diabetes: 1 point\n- Hypertension: 1 point\n- Stroke/TIA history: 2 points\n\n**Clinical Interpretation:**\nScore ≥2 indicates high stroke risk. Anticoagulation therapy is strongly recommended unless contraindicated.\n\n**Disclaimer:** This calculation is for educational purposes. Clinical decisions should always consider complete patient assessment.",
-    "agent_used": "medical_calculator_agent",
-    "processing_time_ms": 1247
-  }
+// Event 6: Final content
+data: {
+  "type": "content",
+  "content": "**CHA₂DS₂-VASc Score: 6 points (High Risk)**\n\nBreakdown:\n- Age 65-74: 1 point\n- Female: 1 point\n- Diabetes: 1 point\n- Hypertension: 1 point\n- Stroke/TIA history: 2 points\n\n**Clinical Interpretation:**\nScore ≥2 indicates high stroke risk. Anticoagulation therapy is strongly recommended unless contraindicated.\n\n**Disclaimer:** This calculation is for educational purposes. Clinical decisions should always consider complete patient assessment."
 }
+
+// Event 7: Processing complete
+data: {"type": "run_completed", "message": "Team has completed processing your request."}
 ```
 
 </CodeGroup>
@@ -391,9 +546,10 @@ data: <JSON_payload>
 
 ```json Request
 {
-  "message": "What's the latest evidence on GLP-1 agonists for cardiovascular outcomes in diabetes?",
+  "prompt": "What's the latest evidence on GLP-1 agonists for cardiovascular outcomes in diabetes?",
   "workspace_id": "sC0ZQxmU2onbb7noTjIN",
-  "user_id": "dr_endocrine_789"
+  "user_id": "dr_endocrine_789",
+  "use_search": true
 }
 ```
 
@@ -420,9 +576,10 @@ data: <JSON_payload>
 
 ```json Request
 {
-  "message": "Look up recent visits for patient Sarah Johnson, focusing on her diabetes management",
+  "prompt": "Look up recent visits for patient Sarah Johnson, focusing on her diabetes management",
   "workspace_id": "sC0ZQxmU2onbb7noTjIN",
-  "user_id": "dr_primary_care_101"
+  "user_id": "dr_primary_care_101",
+  "patient_id": "patient_sarah_johnson_123"
 }
 ```
 
@@ -450,7 +607,7 @@ function useNarraChat() {
   const [currentResponse, setCurrentResponse] = useState('');
   const abortControllerRef = useRef(null);
 
-  const sendMessage = async (message, workspaceId, userId = null, sessionId = null) => {
+  const sendMessage = async (prompt, workspaceId, userId = null, sessionId = null, options = {}) => {
     if (streaming) return; // Prevent multiple concurrent requests
     
     setStreaming(true);
@@ -460,7 +617,7 @@ function useNarraChat() {
     const userMessage = {
       id: Date.now(),
       role: 'user',
-      content: message,
+      content: prompt,
       timestamp: new Date().toISOString()
     };
     setMessages(prev => [...prev, userMessage]);
@@ -475,11 +632,15 @@ function useNarraChat() {
           'X-API-Key': process.env.REACT_APP_API_KEY,
         },
         body: JSON.stringify({
-          message,
+          prompt,
           workspace_id: workspaceId,
           user_id: userId,
           session_id: sessionId,
-          debug_mode: false
+          images: options.images || [],
+          use_search: options.use_search || false,
+          patient_id: options.patient_id,
+          user_profile_brief: options.user_profile_brief,
+          is_premium: options.is_premium || false
         }),
         signal: abortControllerRef.current.signal
       });
@@ -503,33 +664,38 @@ function useNarraChat() {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
-          if (line.trim()) {
-            const [eventLine, dataLine] = line.split('\n');
-            if (eventLine?.startsWith('event:') && dataLine?.startsWith('data:')) {
-              const eventType = eventLine.substring(6).trim();
-              const eventData = JSON.parse(dataLine.substring(5).trim());
+          if (line.trim() && line.startsWith('data:')) {
+            try {
+              const eventData = JSON.parse(line.substring(5).trim());
               
-              if (eventType === 'team_tool_call_started') {
-                agentUsed = eventData.agent_type;
+              if (eventData.type === 'session_info') {
+                // Handle session info
+                console.log('Session ID:', eventData.sessionId);
+              } else if (eventData.type === 'tool_started') {
+                agentUsed = eventData.member_name || eventData.tool_name;
                 setCurrentResponse(`🤖 Routing to ${agentUsed.replace('_', ' ')}...`);
-              } else if (eventType === 'team_reasoning_step') {
+              } else if (eventData.type === 'agent_reasoning_step') {
                 setCurrentResponse(eventData.content);
-              } else if (eventType === 'team_run_completed') {
+              } else if (eventData.type === 'content') {
                 fullResponse = eventData.content;
                 setCurrentResponse(fullResponse);
-                
+              } else if (eventData.type === 'run_completed') {
                 // Add AI response to chat
                 const aiMessage = {
                   id: Date.now() + 1,
                   role: 'assistant',
                   content: fullResponse,
                   timestamp: new Date().toISOString(),
-                  agent_used: eventData.agent_used,
-                  citations: eventData.citations || []
+                  agent_used: agentUsed
                 };
                 setMessages(prev => [...prev, aiMessage]);
                 break;
+              } else if (eventData.type === 'citations') {
+                // Handle citations separately
+                console.log('Citations found:', eventData.citations);
               }
+            } catch (parseError) {
+              console.warn('Failed to parse event data:', parseError);
             }
           }
         }
@@ -575,7 +741,10 @@ function NarraChatInterface({ workspaceId, userId }) {
   const handleSend = async () => {
     if (!inputValue.trim() || streaming) return;
     
-    await sendMessage(inputValue, workspaceId, userId);
+    await sendMessage(inputValue, workspaceId, userId, null, {
+      use_search: false,
+      is_premium: true
+    });
     setInputValue('');
   };
 
@@ -641,11 +810,15 @@ class NarraChatClient:
     
     async def chat_stream(
         self, 
-        message: str, 
+        prompt: str, 
         workspace_id: str, 
         user_id: Optional[str] = None,
         session_id: Optional[str] = None,
-        debug_mode: bool = False
+        images: Optional[list] = None,
+        use_search: bool = False,
+        patient_id: Optional[str] = None,
+        user_profile_brief: Optional[str] = None,
+        is_premium: bool = False
     ) -> Dict[str, Any]:
         """Send message and process streaming response"""
         
@@ -656,11 +829,15 @@ class NarraChatClient:
         }
         
         payload = {
-            "message": message,
+            "prompt": prompt,
             "workspace_id": workspace_id,
             "user_id": user_id,
             "session_id": session_id or self.session_id,
-            "debug_mode": debug_mode
+            "images": images or [],
+            "use_search": use_search,
+            "patient_id": patient_id,
+            "user_profile_brief": user_profile_brief,
+            "is_premium": is_premium
         }
         
         events = []
@@ -674,38 +851,40 @@ class NarraChatClient:
                         error_text = await response.text()
                         raise Exception(f"HTTP {response.status}: {error_text}")
                     
-                    print(f"💬 User: {message}")
+                    print(f"💬 User: {prompt}")
                     print("🤖 NarraChat: ", end="", flush=True)
                     
                     async for line in response.content:
                         line = line.decode('utf-8').strip()
                         
-                        if line.startswith('event:'):
-                            event_type = line[6:].strip()
-                        elif line.startswith('data:'):
+                        if line.startswith('data:'):
                             try:
                                 data = json.loads(line[5:].strip())
-                                events.append({"type": event_type, "data": data})
+                                events.append({"type": data.get('type'), "data": data})
                                 
-                                if event_type == "team_tool_call_started":
-                                    agent_used = data.get('agent_type', '')
-                                    print(f"\n🔄 Routing to {agent_used.replace('_', ' ')}...")
+                                if data.get('type') == "session_info":
+                                    self.session_id = data.get('sessionId')
+                                    print(f"Session: {self.session_id}")
                                     
-                                elif event_type == "team_reasoning_step":
+                                elif data.get('type') == "tool_started":
+                                    agent_used = data.get('member_name', data.get('tool_name', ''))
+                                    print(f"\n🔄 {data.get('message', 'Processing...')}")
+                                    
+                                elif data.get('type') == "agent_reasoning_step":
                                     print(".", end="", flush=True)
                                     
-                                elif event_type == "team_run_completed":
+                                elif data.get('type') == "content":
                                     final_response = data.get('content', '')
                                     print(f"\n\n{final_response}")
                                     
-                                    # Display citations if present
+                                elif data.get('type') == "citations":
                                     citations = data.get('citations', [])
                                     if citations:
                                         print("\n📚 Citations:")
-                                        for citation in citations:
-                                            print(f"[{citation['number']}] {citation['title']}")
-                                            print(f"    {citation['url']}")
+                                        for i, url in enumerate(citations, 1):
+                                            print(f"[{i}] {url}")
                                     
+                                elif data.get('type') == "run_completed":
                                     break
                                     
                             except json.JSONDecodeError:
@@ -727,23 +906,25 @@ async def main():
     
     # Medical calculation example
     await client.chat_stream(
-        message="Calculate BMI for patient: 170cm height, 75kg weight",
+        prompt="Calculate BMI for patient: 170cm height, 75kg weight",
         workspace_id="workspace_123",
         user_id="dr_smith"
     )
     
     # Literature search example
     await client.chat_stream(
-        message="Find recent studies on statins for primary prevention",
+        prompt="Find recent studies on statins for primary prevention",
         workspace_id="workspace_123",
-        user_id="dr_smith"
+        user_id="dr_smith",
+        use_search=True
     )
     
     # Patient query example
     await client.chat_stream(
-        message="Look up patient John Smith's recent lab results",
+        prompt="Look up patient John Smith's recent lab results",
         workspace_id="workspace_123", 
-        user_id="dr_smith"
+        user_id="dr_smith",
+        patient_id="patient_john_smith_456"
     )
 
 if __name__ == "__main__":
@@ -757,7 +938,7 @@ curl -X POST http://localhost:8001/api/v1/chat_v3/stream \
   -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
   -d '{
-    "message": "Calculate CHA2DS2-VASc score for 70-year-old male with diabetes and hypertension",
+    "prompt": "Calculate CHA2DS2-VASc score for 70-year-old male with diabetes and hypertension",
     "workspace_id": "sC0ZQxmU2onbb7noTjIN",
     "user_id": "dr_cardiology_456"
   }' \
@@ -769,9 +950,10 @@ curl -X POST http://localhost:8001/api/v1/chat_v3/stream \
   -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
   -d '{
-    "message": "What are the latest guidelines for blood pressure management in elderly patients?",
+    "prompt": "What are the latest guidelines for blood pressure management in elderly patients?",
     "workspace_id": "sC0ZQxmU2onbb7noTjIN",
-    "user_id": "dr_geriatrics_789"
+    "user_id": "dr_geriatrics_789",
+    "use_search": true
   }' \
   --no-buffer
 
@@ -781,9 +963,10 @@ curl -X POST http://localhost:8001/api/v1/chat_v3/stream \
   -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
   -d '{
-    "message": "Show me recent visits for patient Maria Garcia, focusing on her diabetes management",
+    "prompt": "Show me recent visits for patient Maria Garcia, focusing on her diabetes management",
     "workspace_id": "sC0ZQxmU2onbb7noTjIN", 
-    "user_id": "dr_endocrine_101"
+    "user_id": "dr_endocrine_101",
+    "patient_id": "patient_maria_garcia_789"
   }' \
   --no-buffer
 ```
