@@ -11,42 +11,77 @@ description: 'How AI-powered custom fields transform clinical documentation - ex
 
 ## What is NarraFields?
 
-NarraFields automatically extracts clinical information from your patient notes based on custom fields you define. You decide what data matters to your practice - blood pressure readings, medication changes, symptoms, or any clinical indicator - and AI finds it in your existing documentation.
+<Info>
+**The Problem:**
+Important clinical data gets buried in notes, making it hard to track trends or find specific information quickly.
+</Info>
 
-### How It Works (3 Steps)
+NarraFields automatically extracts clinical information from your patient notes based on custom fields you define. 
 
-1. **📋 You Define Custom Fields** - Decide what clinical data to track
-2. **🤖 AI Processes Your Notes** - Extracts the information you specified  
-3. **✅ You Review and Use Data** - Approve suggestions and access organized information
+**You decide what matters:**
+- Blood pressure readings
+- Medication changes  
+- Symptom patterns
+- Any clinical indicator important to your practice
+
+**AI finds it in your existing documentation** - no workflow changes required.
+
+### How It Works
+
+<CardGroup cols={3}>
+  <Card title="1. Define What Matters" icon="clipboard-list">
+    "Track pain scores 1-10"
+    
+    You decide what to extract
+  </Card>
+  <Card title="2. AI Finds It" icon="robot">
+    "Pain 7/10 today" → 7
+    
+    Automatic extraction from notes
+  </Card>
+  <Card title="3. Use Organized Data" icon="chart-line">
+    Instant lists, trends, alerts
+    
+    Clinical information at your fingertips
+  </Card>
+</CardGroup>
 
 Every practice is different. You define what's important to track.
 
 ## Step 1: Define Your Custom Fields
 
+<Info>
 The first step is deciding what clinical information you want to extract and track.
+</Info>
 
 ### How You Create a Custom Field
 
-**Step 1: Name Your Field**
-> "Pain Scale Rating"
+<AccordionGroup>
+  <Accordion title="Field Creation Process">
+    **Step 1: Name Your Field**
+    > "Pain Scale Rating"
 
-**Step 2: Describe What You Want**
-> "Extract the patient's current pain level on a 1-10 scale when mentioned in clinical notes"
+    **Step 2: Describe What You Want**
+    > "Extract the patient's current pain level on a 1-10 scale when mentioned in clinical notes"
 
-**Step 3: Give Examples**
-> - "Pain 7/10 today" → Extract: "7"
-> - "Reports pain level of 4 out of 10" → Extract: "4"  
-> - "No pain currently" → Extract: "0"
+    **Step 3: Give Examples**
+    > - "Pain 7/10 today" → Extract: "7"
+    > - "Reports pain level of 4 out of 10" → Extract: "4"  
+    > - "No pain currently" → Extract: "0"
 
-**Step 4: Set Your Preferences**
-- **Auto-approve routine values?** (like objective pain scores)
-- **Require review for important changes?** (like severe pain increases)
-- **Update automatically when new notes are added?**
+    **Step 4: Set Your Preferences**
+    - **Auto-approve routine values?** (like objective pain scores)
+    - **Require review for important changes?** (like severe pain increases)
+    - **Update automatically when new notes are added?**
+  </Accordion>
+</AccordionGroup>
+
+---
 
 ### Field Types You Can Create
 
 <AccordionGroup>
-  <Accordion title="📊 Number Fields">
+  <Accordion title="Number Fields">
     **Perfect for measurable values:**
     - Pain scales (1-10)
     - Blood pressure readings (120/80)
@@ -55,7 +90,7 @@ The first step is deciding what clinical information you want to extract and tra
     - Vital signs (HR: 72 bpm)
   </Accordion>
 
-  <Accordion title="📝 Text Fields">
+  <Accordion title="Text Fields">
     **Great for descriptive information:**
     - Medication names and dosages
     - Symptom descriptions
@@ -64,7 +99,7 @@ The first step is deciding what clinical information you want to extract and tra
     - Patient concerns or goals
   </Accordion>
 
-  <Accordion title="📅 Date Fields">
+  <Accordion title="Date Fields">
     **Essential for scheduling and tracking:**
     - Last mammogram date
     - Next appointment scheduled
@@ -73,7 +108,7 @@ The first step is deciding what clinical information you want to extract and tra
     - Milestone achievements
   </Accordion>
 
-  <Accordion title="☑️ Yes/No Fields">
+  <Accordion title="Yes/No Fields">
     **Binary tracking made simple:**
     - Medication compliance (taking/not taking)
     - Symptom presence (present/absent)
@@ -81,7 +116,7 @@ The first step is deciding what clinical information you want to extract and tra
     - Side effects (experiencing/not experiencing)
   </Accordion>
 
-  <Accordion title="📋 Multiple Choice">
+  <Accordion title="Multiple Choice">
     **When you have specific options:**
     - Severity levels (Mild/Moderate/Severe)
     - Treatment responses (Improved/Stable/Worse)
@@ -93,131 +128,244 @@ The first step is deciding what clinical information you want to extract and tra
 ### Specialty-Specific Examples
 
 <AccordionGroup>
-  <Accordion title="🫀 Cardiology Practice">
-    **Custom Fields You Might Create:**
-    - **Exercise Tolerance**: "Patient walked 2 blocks without shortness of breath"
-    - **Chest Pain Characteristics**: "Sharp, stabbing pain, 7/10 severity, lasts 5 minutes"
-    - **Medication Adherence**: "Taking carvedilol as prescribed, no side effects"
-    - **EKG Changes**: "Normal sinus rhythm, no ST changes"
+  <Accordion title="Primary Care Practice">
+    **Field:** "Symptom Duration"  
+    **Field Type:** Number
     
-    **Your AI learns to find**: Heart-related symptoms, exercise capacity, medication responses, and cardiac test results specifically relevant to cardiology care.
+    **Your Instructions:**
+    > Extract how long the patient has been experiencing their main symptom, in days. Convert weeks to days (multiply by 7), months to days (multiply by 30). Look for phrases like "for the past", "started", "began", "since". If multiple symptoms mentioned, focus on the chief complaint.
+    
+    **From Note:**
+    > "Patient reports worsening cough that started about 3 weeks ago after a cold. Also mentions occasional headaches for years but the cough is really bothering her now."
+    
+    **Extracted:** 
+    > 21
+    
+    **Impact:** 
+    > AI understands context to identify chief complaint and converts time units accurately
   </Accordion>
-
-  <Accordion title="🏃‍♀️ Sports Medicine">
-    **Custom Fields You Might Create:**
-    - **Return to Play Status**: "Cleared for non-contact activities"
-    - **Pain During Activity**: "Knee pain 4/10 with running, improves with rest"
-    - **Range of Motion**: "90% ROM compared to unaffected side"
-    - **Functional Milestones**: "Can perform single-leg squat without pain"
+  
+  <Accordion title="Cardiology">
+    **Field:** "Has Chest Pain Symptoms"  
+    **Field Type:** Yes/No
     
-    **Your AI learns to find**: Activity-specific symptoms, functional improvements, and rehabilitation progress markers.
+    **Your Instructions:**
+    > Determine if patient currently experiences any chest pain, chest discomfort, chest pressure, or chest tightness. Include related symptoms like "heaviness in chest" or "squeezing sensation". Answer "Yes" even if intermittent or mild.
+    
+    **From Note:**
+    > "Patient denies chest pain but mentions feeling pressure in her chest when walking upstairs. No pain at rest. Describes it as heaviness rather than sharp pain."
+    
+    **Extracted:** 
+    > Yes
+    
+    **Impact:** 
+    > AI recognizes chest pain equivalents and synonyms that might be missed
   </Accordion>
-
-  <Accordion title="🧠 Mental Health Practice">
-    **Custom Fields You Might Create:**
-    - **Mood Rating**: "Patient rates mood 6/10 today, improved from last week"
-    - **Sleep Quality**: "Sleeping 6 hours nightly, waking 2-3 times"
-    - **Medication Side Effects**: "No weight gain noticed with current antidepressant"
-    - **Therapy Progress**: "Using coping strategies, feels more confident"
+  
+  <Accordion title="Family Medicine">
+    **Field:** "Alcohol Use Pattern"  
+    **Field Type:** Multiple Choice
     
-    **Your AI learns to find**: Mood indicators, therapy progress, medication effects, and behavioral changes.
+    **Your Instructions:**
+    > Categorize drinking pattern: "None" = no alcohol, "Social" = occasional/special occasions only, "Regular" = weekly consumption but within guidelines, "Heavy" = daily or excessive amounts, "Concerning" = binge drinking or negative consequences mentioned.
+    
+    **From Note:**
+    > "Patient reports having a couple glasses of wine with dinner most nights, maybe a beer or two on weekends. Says it helps her relax after work but denies any problems."
+    
+    **Extracted:** 
+    > Regular
+    
+    **Impact:** 
+    > AI interprets drinking patterns and frequency descriptions to categorize appropriately
   </Accordion>
-
-  <Accordion title="👶 Pediatrics">
-    **Custom Fields You Might Create:**
-    - **Growth Percentiles**: "Height 75th percentile, weight 60th percentile"
-    - **Developmental Milestones**: "Walking independently, vocabulary of 20 words"
-    - **Feeding Issues**: "Eating solid foods well, no choking episodes"
-    - **School Performance**: "Teacher reports improved attention in class"
+  
+  <Accordion title="Emergency Medicine">
+    **Field:** "Last Tetanus Shot"  
+    **Field Type:** Date
     
-    **Your AI learns to find**: Growth patterns, developmental progress, feeding behaviors, and educational performance.
+    **Your Instructions:**
+    > Extract when patient received their most recent tetanus vaccination. Look for phrases like "tetanus shot", "Tdap", "DT vaccine". Convert relative dates like "5 years ago" to approximate calendar dates. If patient says "don't remember" or unclear, leave blank.
+    
+    **From Note:**
+    > "Patient thinks he got a tetanus shot about 8 years ago when he stepped on a nail at his previous job, but can't remember exactly when."
+    
+    **Extracted:** 
+    > 2016-01-01
+    
+    **Impact:** 
+    > AI converts relative timeframes into usable dates for vaccination tracking
+  </Accordion>
+  
+  <Accordion title="Urgent Care">
+    **Field:** "Symptom Severity Scale"  
+    **Field Type:** Multiple Choice
+    
+    **Your Instructions:**
+    > Rate symptom impact on daily activities: "Minimal" = slight bother but normal activities, "Moderate" = some activity limitation, "Significant" = major impact on daily function, "Severe" = unable to perform normal activities.
+    
+    **From Note:**
+    > "Patient reports knee pain that bothers her when walking but she's still able to do her job as a teacher. Had to skip her weekly tennis game and uses the elevator instead of stairs."
+    
+    **Extracted:** 
+    > Moderate
+    
+    **Impact:** 
+    > AI evaluates functional impact across multiple activity domains
+  </Accordion>
+  
+  <Accordion title="Pediatrics">
+    **Field:** "Weight in Kilograms"  
+    **Field Type:** Number
+    
+    **Your Instructions:**
+    > Extract current weight and convert to kilograms. Look for "lbs", "pounds", "kg", "kilograms". Convert pounds to kg by dividing by 2.2. Round to one decimal place.
+    
+    **From Note:**
+    > "Child weighs 45 pounds according to mom, up from 42 pounds at last visit 3 months ago."
+    
+    **Extracted:** 
+    > 20.5
+    
+    **Impact:** 
+    > AI handles unit conversion and identifies current vs. historical measurements
+  </Accordion>
+  
+  <Accordion title="Orthopedics">
+    **Field:** "Affected Body Parts"  
+    **Field Type:** Multi-Select
+    
+    **Your Instructions:**
+    > Select all body parts currently affected by patient's condition. Options: Neck, Shoulder, Elbow, Wrist, Hand, Back, Hip, Knee, Ankle, Foot. Include areas with pain, stiffness, swelling, or functional limitation mentioned.
+    
+    **From Note:**
+    > "Patient reports right shoulder pain that radiates down to her elbow. Also mentions lower back stiffness in the mornings and occasional wrist pain from typing."
+    
+    **Extracted:** 
+    > Shoulder, Elbow, Back, Wrist
+    
+    **Impact:** 
+    > AI identifies multiple affected areas from complex symptom descriptions
+  </Accordion>
+  
+  <Accordion title="Internal Medicine">
+    **Field:** "Currently Experiencing Fatigue"  
+    **Field Type:** Yes/No
+    
+    **Your Instructions:**
+    > Determine if patient currently has fatigue, tiredness, low energy, or feeling worn out. Include synonyms like "exhausted", "drained", "no energy". Exclude normal tiredness after exercise or lack of sleep.
+    
+    **From Note:**
+    > "Patient feels fine most days but gets really tired by afternoon, more than usual. Says she's sleeping well but just doesn't have the energy she used to have."
+    
+    **Extracted:** 
+    > Yes
+    
+    **Impact:** 
+    > AI distinguishes pathological fatigue from normal tiredness patterns
   </Accordion>
 </AccordionGroup>
 
 ## Step 2: AI Processes Your Notes
 
-Once you've defined your fields, AI automatically reads through your patient notes to extract the information.
+<Info>
+Configure how AI processes your fields with precise control over automation, approval requirements, and fallback behavior.
+</Info>
 
-### Teaching the AI Your Language
+### How You Control AI Processing
 
-The system learns your documentation style:
-- Your abbreviations (HTN, DM, etc.)
-- Your terminology and format preferences
-- Your clinical patterns
+<AccordionGroup>
+  <Accordion title="Processing Triggers">
+    **Manual Processing**: You choose when to process and which patients
+    
+    **Auto-Update**: Automatically processes when new notes are added
+    
+    **Overwrite Protection**: Preserves manual entries unless you choose otherwise
+  </Accordion>
 
-**Example:**
-1. You create field: "Blood Pressure Reading" 
-2. AI finds: "BP 140/90" in your notes
-3. You confirm: "Yes, that's correct"
-4. AI learns: Your practice uses "BP" for blood pressure
-5. Next time: AI automatically recognizes "BP 130/85"
+  <Accordion title="Approval Settings">
+    **Auto-Approve**: Objective data (vital signs, lab values) saves immediately
+    
+    **Require Review**: Clinical judgments wait for your approval before saving
+    
+    **Custom Fallbacks**: Define what AI should do when information isn't clear
+  </Accordion>
+</AccordionGroup>
+
+**Example Setup:**
+Field: "Primary Diagnosis" → Auto-update enabled → Requires approval → Fallback: "Pending evaluation"
 
 ## Step 3: Review and Use Your Data
 
+<Info>
+See how NarraFields transforms your clinical notes into organized, searchable data that saves time and improves patient care.
+</Info>
+
 ### Real Examples of How It Works
 
-### Example 1: Blood Pressure Tracking
+<AccordionGroup>
+  <Accordion title="Blood Pressure Tracking">
+    **Your Note:**
+    > "Patient reports feeling dizzy this morning. BP check shows 165/95, up from last visit. Discussed lifestyle modifications. Started lisinopril 10mg daily."
 
-**Your Note:**
-> "Patient reports feeling dizzy this morning. BP check shows 165/95, up from last visit. Discussed lifestyle modifications. Started lisinopril 10mg daily. Follow-up in 2 weeks to recheck."
+    **What NarraFields Extracts:**
+    - Blood Pressure: 165/95
+    - Symptom: Dizziness
+    - New Medication: Lisinopril 10mg daily
 
-**What NarraFields Does:**
-1. 🤖 **AI Reads Your Note**: Scans the text for blood pressure information
-2. 📊 **Extracts Key Data**: Identifies "165/95" as the current blood pressure
-3. 📝 **Creates Structured Field**: Automatically fills "Current Blood Pressure: 165/95"
-4. 🔗 **Links to Source**: Points back to your original note for context
-5. ✅ **Ready for Use**: Now you can easily find all patients with elevated BP
+    **The Result:** Instantly find all patients with elevated BP readings without searching through notes.
+  </Accordion>
 
-**The Result:** Instead of searching through notes manually, you can now instantly find all patients with elevated blood pressure readings.
+  <Accordion title="Medication Management">
+    **Your Note:**
+    > "Patient doing well on current diabetes management. A1C improved to 7.2%. Increasing metformin from 500mg BID to 1000mg BID."
 
-### Example 2: Medication Management
+    **What NarraFields Extracts:**
+    - Current A1C: 7.2%
+    - Medication Change: Metformin increased to 1000mg BID
+    - Diabetes Status: Well-controlled
 
-**Your Note:**
-> "Patient doing well on current diabetes management. A1C improved to 7.2%. Increasing metformin from 500mg BID to 1000mg BID. Continue lifestyle counseling."
+    **The Result:** Quickly find all patients on specific medications and track changes over time.
+  </Accordion>
 
-**What NarraFields Extracts:**
-- **Current A1C**: 7.2%
-- **Medication Change**: Metformin increased to 1000mg BID
-- **Diabetes Status**: Well-controlled
-- **Next Action**: Continue current plan
+  <Accordion title="Preventive Care Tracking">
+    **Your Note:**
+    > "Due for mammogram - scheduled for next month. Flu shot given today. Discussed colorectal cancer screening - patient prefers FIT test."
 
-**The Benefit:** You can quickly find all patients on specific medications and track medication changes over time.
+    **What NarraFields Extracts:**
+    - Mammogram: Scheduled (due date tracked)
+    - Flu Vaccine: Completed today
+    - Colorectal Screening: FIT test preferred
 
-### Example 3: Preventive Care Tracking
-
-**Your Note:**
-> "Annual physical. Patient reports no new concerns. Due for mammogram - scheduled for next month. Flu shot given today. Discussed colorectal cancer screening - patient prefers FIT test."
-
-**What Gets Organized:**
-- **Mammogram**: Scheduled (due date tracked)
-- **Flu Vaccine**: Completed today
-- **Colorectal Screening**: FIT test preferred
-- **Next Visit**: Annual follow-up
-
-**The Impact:** You can easily track preventive care discussions and follow up with patients about pending screenings.
+    **The Result:** Easily track preventive care discussions and follow up with patients about pending screenings.
+  </Accordion>
+</AccordionGroup>
 
 ### The Approval Process
 
-For critical clinical information, NarraFields uses a **human-in-the-loop** approach:
+For critical clinical information, NarraFields uses a **human-in-the-loop** approach where you maintain control over what gets automatically processed versus what requires your review.
 
 ```mermaid
 graph TD
-    A[📋 You Define Custom Field] --> B[📝 You Write Notes] 
-    B --> C[🤖 AI Reads & Extracts]
-    C --> D{🩺 Needs Review?}
-    D -->|Critical Info| E[⏸️ Waits for Your Approval]
-    D -->|Routine Data| F[✅ Auto-Approved]
-    E --> G[👩‍⚕️ You Review & Approve]
-    E --> H[❌ You Reject & Correct]
-    G --> I[📊 Available for Use]
-    H --> J[📝 Manual Entry Option]
+    A[You Define Custom Field] --> B[You Write Notes] 
+    B --> C[AI Reads & Extracts]
+    C --> D{Needs Review?}
+    D -->|Critical Info| E[Waits for Your Approval]
+    D -->|Routine Data| F[Auto-Approved]
+    E --> G[You Review & Approve]
+    E --> H[You Reject & Correct]
+    G --> I[Available for Use]
+    H --> J[Manual Entry Option]
     F --> I
 ```
 
 ### What Gets Auto-Approved vs. Human Review
 
+<Note>
+Critical clinical information always waits for your approval. You decide what requires review when setting up each field.
+</Note>
+
 <AccordionGroup>
-  <Accordion title="✅ Usually Auto-Approved">
+  <Accordion title="Usually Auto-Approved">
     **Objective measurements that are clearly documented:**
     - Vital signs (blood pressure, temperature, weight)
     - Lab values with clear results
@@ -227,7 +375,7 @@ graph TD
     **Example**: "BP 120/80" → Auto-approved as objective measurement
   </Accordion>
 
-  <Accordion title="👩‍⚕️ Usually Requires Review">
+  <Accordion title="Usually Requires Review">
     **Clinical judgments and interpretations:**
     - Diagnosis changes or new diagnoses
     - Treatment plan modifications
@@ -238,95 +386,122 @@ graph TD
   </Accordion>
 </AccordionGroup>
 
-### Complete Audit Trail
+## Complete Audit Trail
 
-NarraFields maintains a complete audit trail of every action:
+<Info>
+Every action is tracked for clinical safety, compliance, and team coordination.
+</Info>
 
-**What Gets Tracked:**
-- When AI extracts values from notes
-- When you approve or reject AI suggestions  
-- When you manually update field values
-- Who made each change and exactly when
+<CardGroup cols={2}>
+  <Card title="What Gets Tracked" icon="list-check">
+    - AI extractions from notes
+    - Approval/rejection decisions  
+    - Manual value updates
+    - User identity and timestamps
+  </Card>
+  
+  <Card title="Why This Matters" icon="shield-check">
+    - **Clinical Safety:** Verify data sources and track accountability
+    - **Compliance:** Support regulatory reviews and documentation requirements
+    - **Team Coordination:** See who updated what and when
+  </Card>
+</CardGroup>
 
-**Why This Matters:**
-- **Clinical Safety:** Verify sources, track approvals, maintain accountability
-- **Compliance:** Meet documentation requirements, support regulatory reviews
-- **Team Coordination:** See who updated what and when
+<Accordion title="Audit Example">
+**Field Value:** BP 150/95
 
-**Example:** A patient's blood pressure field shows "150/95" and you can trace it back to: "Extracted from note dated Jan 10, 2024: 'BP check shows 150/95, patient reports headache' - Dr. Johnson approved this value on Jan 10, 2024 at 3:45 PM"
+**Full Trail:** Extracted from Jan 10 note "BP check shows 150/95, patient reports headache" - Dr. Johnson approved 3:45 PM
+</Accordion>
 
-## Day-in-the-Life Scenarios
+## Real Clinical Impact
 
-### Scenario 1: Morning Huddle
+<Info>
+See the time-saving transformation NarraFields brings to common clinical workflows.
+</Info>
 
-**Before NarraFields:**
-> "Can someone check which of our diabetes patients mentioned blood sugar issues in their last visits? And do we know who has blood pressure readings over 140 lately?"
-
-*Someone spends 30 minutes reviewing charts manually.*
-
-**With NarraFields:**
-> "Let me check our custom fields... I can see 12 patients with recent blood sugar concerns, and we have 8 patients with BP readings over 140 documented in their last visits."
-
-*Information available instantly from extracted data.*
-
-### Scenario 2: Clinical Data Retrieval
-
-**Before NarraFields:**
-> "We need to find all diabetic patients with A1C values over 8.0 for follow-up calls. Sarah, can you review 200 charts and extract the latest A1C for each?"
-
-*Hours of manual chart review.*
-
-**With NarraFields:**
-> "I can instantly pull up all patients with A1C over 8.0 from our custom field. Here are 23 patients who need follow-up calls."
-
-*Instant clinical data retrieval.*
-
-### Scenario 3: Patient Safety
-
-**Before NarraFields:**
-> "Did anyone notice if Mrs. Johnson mentioned drug allergies during her last few visits? Let me check her notes..."
-
-*Digging through multiple visit notes.*
-
-**With NarraFields:**
-> "Mrs. Johnson's allergy field shows 'Penicillin (rash)' extracted from her March visit note, and it was flagged for verification."
-
-*Safety information prominently displayed.*
+<AccordionGroup>
+  <Accordion title="Morning Huddle Transformation">
+    <div style={{display: 'flex', gap: '20px'}}>
+      <div style={{flex: 1, backgroundColor: '#fef2f2', padding: '15px', borderRadius: '8px'}}>
+        **Before:** "Someone check which diabetes patients mentioned blood sugar issues..."  
+        *(30 minutes of manual chart review)*
+      </div>
+      <div style={{flex: 1, backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px'}}>
+        **After:** "12 patients with recent blood sugar concerns, 8 with BP >140"  
+        *(Instant results from custom fields)*
+      </div>
+    </div>
+  </Accordion>
+  
+  <Accordion title="Patient Outreach Made Easy">
+    <div style={{display: 'flex', gap: '20px'}}>
+      <div style={{flex: 1, backgroundColor: '#fef2f2', padding: '15px', borderRadius: '8px'}}>
+        **Before:** "Review 200 charts for A1C values over 8.0..."  
+        *(Hours of manual work)*
+      </div>
+      <div style={{flex: 1, backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px'}}>
+        **After:** "23 patients with A1C >8.0 ready for follow-up calls"  
+        *(One-click clinical data retrieval)*
+      </div>
+    </div>
+  </Accordion>
+  
+  <Accordion title="Patient Safety Enhanced">
+    <div style={{display: 'flex', gap: '20px'}}>
+      <div style={{flex: 1, backgroundColor: '#fef2f2', padding: '15px', borderRadius: '8px'}}>
+        **Before:** "Did Mrs. Johnson mention drug allergies? Let me check her notes..."  
+        *(Digging through multiple visit notes)*
+      </div>
+      <div style={{flex: 1, backgroundColor: '#f0fdf4', padding: '15px', borderRadius: '8px'}}>
+        **After:** "Allergy field shows 'Penicillin (rash)' from March visit"  
+        *(Safety information prominently displayed)*
+      </div>
+    </div>
+  </Accordion>
+</AccordionGroup>
 
 
 
 
 ## Future Potential
 
-While NarraFields currently focuses on extracting and organizing clinical information, the structured data it creates opens up exciting possibilities for the future:
+<Info>
+While NarraFields currently focuses on extracting and organizing clinical information, the structured data it creates opens up exciting possibilities for the future.
+</Info>
 
-### Potential Quality Metrics Integration
-**What could be possible:**
-- Automatic generation of quality reports from your custom fields
-- Real-time tracking of quality measures across your patient population
-- Automated identification of care gaps based on your defined criteria
-- Integration with quality reporting systems and value-based care programs
+<AccordionGroup>
+  <Accordion title="Quality Metrics Integration">
+    **What could be possible:**
+    - Automatic generation of quality reports from your custom fields
+    - Real-time tracking of quality measures across your patient population
+    - Automated identification of care gaps based on your defined criteria
+    - Integration with quality reporting systems and value-based care programs
+  </Accordion>
 
-### Advanced Analytics Possibilities
-**What we're exploring:**
-- Population health insights from your custom clinical data
-- Trend analysis across your patient panels
-- Predictive analytics for patient risk stratification
-- Integration with clinical decision support systems
+  <Accordion title="Advanced Analytics Possibilities">
+    **What we're exploring:**
+    - Population health insights from your custom clinical data
+    - Trend analysis across your patient panels
+    - Predictive analytics for patient risk stratification
+    - Integration with clinical decision support systems
+  </Accordion>
 
-### Enhanced Workflow Integration
-**Future workflow improvements:**
-- Automatic alerts when critical values are detected
-- Integration with scheduling systems for follow-up reminders
-- Smart patient list generation based on custom field criteria
-- Enhanced care coordination tools based on extracted data
+  <Accordion title="Enhanced Workflow Integration">
+    **Future workflow improvements:**
+    - Automatic alerts when critical values are detected
+    - Integration with scheduling systems for follow-up reminders
+    - Smart patient list generation based on custom field criteria
+    - Enhanced care coordination tools based on extracted data
+  </Accordion>
 
-### Specialty-Specific Enhancements
-**Tailored future features:**
-- Specialty-specific field templates and best practices
-- Integration with specialty society quality measures
-- Advanced pattern recognition for complex clinical scenarios
-- Collaborative field definitions across similar practices
+  <Accordion title="Specialty-Specific Enhancements">
+    **Tailored future features:**
+    - Specialty-specific field templates and best practices
+    - Integration with specialty society quality measures
+    - Advanced pattern recognition for complex clinical scenarios
+    - Collaborative field definitions across similar practices
+  </Accordion>
+</AccordionGroup>
 
 <Note>
 **Current Focus**: NarraFields today provides the foundation - accurate extraction and organization of your chosen clinical data. These future capabilities will build on this solid base of structured, auditable clinical information.
@@ -360,20 +535,6 @@ While NarraFields currently focuses on extracting and organizing clinical inform
   </Accordion>
 </AccordionGroup>
 
-## Next Steps
-
-**For Clinical Teams:**
-1. Identify what information you repeatedly search for
-2. Define what clinical indicators matter most to your specialty
-3. Start with simple, objective measurements
-4. Add more complex fields as the AI learns your style
-
-**For Practice Administrators:**
-1. Assess what data extraction would improve workflows
-2. Plan custom fields specific to your practice needs
-3. Consider how customization addresses your challenges
-
----
 
 <Note>
 **Ready to learn more?** Ask your technical team about setting up a pilot program with a few key fields that matter most to your practice. Start small, see the benefits, then expand to more complex use cases.
