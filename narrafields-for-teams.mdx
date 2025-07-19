@@ -129,173 +129,138 @@ The first step is deciding what clinical information you want to extract and tra
 
 <AccordionGroup>
   <Accordion title="Primary Care Practice">
-    Field: Symptom Duration  
-    Field Type: Number
+    **Field:** Symptom Duration  
+    **Field Type:** Number
     
-    Your Instructions:
-    - Extract how long the patient has been experiencing their main symptom, in days
-    - Convert weeks to days (multiply by 7), months to days (multiply by 30)
-    - Look for phrases like "for the past", "started", "began", "since"
-    - If multiple symptoms mentioned, focus on the chief complaint
+    **Your Instructions:**
+    - Extract how long the patient has been experiencing their main symptom, in days. Convert weeks to days (multiply by 7), months to days (multiply by 30). Look for phrases like "for the past", "started", "began", "since". If multiple symptoms mentioned, focus on the chief complaint.
     
-    From Note:
-    - Patient reports worsening cough that started about 3 weeks ago after a cold
-    - Also mentions occasional headaches for years but the cough is really bothering her now
+    **From Note:**
+    - Patient reports worsening cough that started about 3 weeks ago after a cold. Also mentions occasional headaches for years but the cough is really bothering her now.
     
-    Extracted: 
+    **Extracted:** 
     - 21
     
-    Impact: 
+    **Impact:** 
     - AI understands context to identify chief complaint and converts time units accurately
   </Accordion>
   
   <Accordion title="Cardiology">
-    Field: Has Chest Pain Symptoms  
-    Field Type: Yes/No
+    **Field:** Has Chest Pain Symptoms  
+    **Field Type:** Yes/No
     
-    Your Instructions:
-    - Determine if patient currently experiences any chest pain, chest discomfort, chest pressure, or chest tightness
-    - Include related symptoms like "heaviness in chest" or "squeezing sensation"
-    - Answer "Yes" even if intermittent or mild
+    **Your Instructions:**
+    - Determine if patient currently experiences any chest pain, chest discomfort, chest pressure, or chest tightness. Include related symptoms like "heaviness in chest" or "squeezing sensation". Answer "Yes" even if intermittent or mild.
     
-    From Note:
-    - Patient denies chest pain but mentions feeling pressure in her chest when walking upstairs
-    - No pain at rest
-    - Describes it as heaviness rather than sharp pain
+    **From Note:**
+    - Patient denies chest pain but mentions feeling pressure in her chest when walking upstairs. No pain at rest. Describes it as heaviness rather than sharp pain.
     
-    Extracted: 
+    **Extracted:** 
     - Yes
     
-    Impact: 
+    **Impact:** 
     - AI recognizes chest pain equivalents and synonyms that might be missed
   </Accordion>
   
   <Accordion title="Family Medicine">
-    Field: Alcohol Use Pattern  
-    Field Type: Multiple Choice
+    **Field:** Alcohol Use Pattern  
+    **Field Type:** Multiple Choice
     
-    Your Instructions:
-    - Categorize drinking pattern using these definitions:
-    - "None" = no alcohol
-    - "Social" = occasional/special occasions only
-    - "Regular" = weekly consumption but within guidelines
-    - "Heavy" = daily or excessive amounts
-    - "Concerning" = binge drinking or negative consequences mentioned
+    **Your Instructions:**
+    - Categorize drinking pattern using these definitions: "None" = no alcohol, "Social" = occasional/special occasions only, "Regular" = weekly consumption but within guidelines, "Heavy" = daily or excessive amounts, "Concerning" = binge drinking or negative consequences mentioned.
     
-    From Note:
-    - Patient reports having a couple glasses of wine with dinner most nights
-    - Maybe a beer or two on weekends
-    - Says it helps her relax after work but denies any problems
+    **From Note:**
+    - Patient reports having a couple glasses of wine with dinner most nights, maybe a beer or two on weekends. Says it helps her relax after work but denies any problems.
     
-    Extracted: 
+    **Extracted:** 
     - Regular
     
-    Impact: 
+    **Impact:** 
     - AI interprets drinking patterns and frequency descriptions to categorize appropriately
   </Accordion>
   
   <Accordion title="Emergency Medicine">
-    Field: Last Tetanus Shot  
-    Field Type: Date
+    **Field:** Last Tetanus Shot  
+    **Field Type:** Date
     
-    Your Instructions:
-    - Extract when patient received their most recent tetanus vaccination
-    - Look for phrases like "tetanus shot", "Tdap", "DT vaccine"
-    - Convert relative dates like "5 years ago" to approximate calendar dates
-    - If patient says "don't remember" or unclear, leave blank
+    **Your Instructions:**
+    - Extract when patient received their most recent tetanus vaccination. Look for phrases like "tetanus shot", "Tdap", "DT vaccine". Convert relative dates like "5 years ago" to approximate calendar dates. If patient says "don't remember" or unclear, leave blank.
     
-    From Note:
-    - Patient thinks he got a tetanus shot about 8 years ago when he stepped on a nail at his previous job
-    - Can't remember exactly when
+    **From Note:**
+    - Patient thinks he got a tetanus shot about 8 years ago when he stepped on a nail at his previous job, but can't remember exactly when.
     
-    Extracted: 
+    **Extracted:** 
     - 2016-01-01
     
-    Impact: 
+    **Impact:** 
     - AI converts relative timeframes into usable dates for vaccination tracking
   </Accordion>
   
   <Accordion title="Urgent Care">
-    Field: Symptom Severity Scale  
-    Field Type: Multiple Choice
+    **Field:** Symptom Severity Scale  
+    **Field Type:** Multiple Choice
     
-    Your Instructions:
-    - Rate symptom impact on daily activities using these levels:
-    - "Minimal" = slight bother but normal activities
-    - "Moderate" = some activity limitation
-    - "Significant" = major impact on daily function
-    - "Severe" = unable to perform normal activities
+    **Your Instructions:**
+    - Rate symptom impact on daily activities using these levels: "Minimal" = slight bother but normal activities, "Moderate" = some activity limitation, "Significant" = major impact on daily function, "Severe" = unable to perform normal activities.
     
-    From Note:
-    - Patient reports knee pain that bothers her when walking but she's still able to do her job as a teacher
-    - Had to skip her weekly tennis game and uses the elevator instead of stairs
+    **From Note:**
+    - Patient reports knee pain that bothers her when walking but she's still able to do her job as a teacher. Had to skip her weekly tennis game and uses the elevator instead of stairs.
     
-    Extracted: 
+    **Extracted:** 
     - Moderate
     
-    Impact: 
+    **Impact:** 
     - AI evaluates functional impact across multiple activity domains
   </Accordion>
   
   <Accordion title="Pediatrics">
-    Field: Weight in Kilograms  
-    Field Type: Number
+    **Field:** Weight in Kilograms  
+    **Field Type:** Number
     
-    Your Instructions:
-    - Extract current weight and convert to kilograms
-    - Look for "lbs", "pounds", "kg", "kilograms"
-    - Convert pounds to kg by dividing by 2.2
-    - Round to one decimal place
+    **Your Instructions:**
+    - Extract current weight and convert to kilograms. Look for "lbs", "pounds", "kg", "kilograms". Convert pounds to kg by dividing by 2.2. Round to one decimal place.
     
-    From Note:
-    - Child weighs 45 pounds according to mom
-    - Up from 42 pounds at last visit 3 months ago
+    **From Note:**
+    - Child weighs 45 pounds according to mom, up from 42 pounds at last visit 3 months ago.
     
-    Extracted: 
+    **Extracted:** 
     - 20.5
     
-    Impact: 
+    **Impact:** 
     - AI handles unit conversion and identifies current vs. historical measurements
   </Accordion>
   
   <Accordion title="Orthopedics">
-    Field: Affected Body Parts  
-    Field Type: Multi-Select
+    **Field:** Affected Body Parts  
+    **Field Type:** Multi-Select
     
-    Your Instructions:
-    - Select all body parts currently affected by patient's condition
-    - Options: Neck, Shoulder, Elbow, Wrist, Hand, Back, Hip, Knee, Ankle, Foot
-    - Include areas with pain, stiffness, swelling, or functional limitation mentioned
+    **Your Instructions:**
+    - Select all body parts currently affected by patient's condition. Options: Neck, Shoulder, Elbow, Wrist, Hand, Back, Hip, Knee, Ankle, Foot. Include areas with pain, stiffness, swelling, or functional limitation mentioned.
     
-    From Note:
-    - Patient reports right shoulder pain that radiates down to her elbow
-    - Also mentions lower back stiffness in the mornings
-    - Occasional wrist pain from typing
+    **From Note:**
+    - Patient reports right shoulder pain that radiates down to her elbow. Also mentions lower back stiffness in the mornings and occasional wrist pain from typing.
     
-    Extracted: 
+    **Extracted:** 
     - Shoulder, Elbow, Back, Wrist
     
-    Impact: 
+    **Impact:** 
     - AI identifies multiple affected areas from complex symptom descriptions
   </Accordion>
   
   <Accordion title="Internal Medicine">
-    Field: Currently Experiencing Fatigue  
-    Field Type: Yes/No
+    **Field:** Currently Experiencing Fatigue  
+    **Field Type:** Yes/No
     
-    Your Instructions:
-    - Determine if patient currently has fatigue, tiredness, low energy, or feeling worn out
-    - Include synonyms like "exhausted", "drained", "no energy"
-    - Exclude normal tiredness after exercise or lack of sleep
+    **Your Instructions:**
+    - Determine if patient currently has fatigue, tiredness, low energy, or feeling worn out. Include synonyms like "exhausted", "drained", "no energy". Exclude normal tiredness after exercise or lack of sleep.
     
-    From Note:
-    - Patient feels fine most days but gets really tired by afternoon, more than usual
-    - Says she's sleeping well but just doesn't have the energy she used to have
+    **From Note:**
+    - Patient feels fine most days but gets really tired by afternoon, more than usual. Says she's sleeping well but just doesn't have the energy she used to have.
     
-    Extracted: 
+    **Extracted:** 
     - Yes
     
-    Impact: 
+    **Impact:** 
     - AI distinguishes pathological fatigue from normal tiredness patterns
   </Accordion>
 </AccordionGroup>
