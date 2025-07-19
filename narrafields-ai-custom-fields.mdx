@@ -1460,182 +1460,34 @@ Configure what the AI should do when it cannot confidently extract the requested
 **Rate limiting**: OpenAI API calls are managed through internal rate limiting. Large batch operations (100+ patients) are automatically throttled.
 </Tip>
 
-## Common Integration Patterns
+## Integration Notes
 
-### Complete Workflow: Clinical Quality Metrics
+### Auto-Update Behavior
 
-<AccordionGroup>
-  <Accordion title="Setup: Blood Pressure Tracking">
-    ```python
-    # 1. Create a blood pressure field
-    bp_field = create_diagnosis_field(
-        api_key="your_api_key",
-        field_data={
-            "field_name": "latest_blood_pressure",
-            "field_description": "Most recent systolic/diastolic blood pressure reading in mmHg format (e.g., 120/80)",
-            "field_type": "single_line_text",
-            "processing_behavior": {
-                "auto_update": True,        # Update when new vitals logged
-                "overwrite_existing": True, # Always use latest reading
-                "requires_approval": False  # Auto-approve objective measurements
-            },
-            "fallback_strategy": {
-                "user_instruction": "If blood pressure is not documented, respond with 'BP not recorded'"
-            }
-        }
-    )
-    
-    # 2. Process existing patients
-    patient_list = get_all_patients_in_workspace("workspace_123")
-    patient_ids = [p["id"] for p in patient_list]
-    
-    # 3. Trigger AI processing for entire population
-    processing_result = process_fields_with_ai(
-        api_key="your_api_key",
-        field_id=bp_field["id"],
-        patient_ids=patient_ids
-    )
-    
-    print(f"Processing {processing_result['total_patients']} patients")
-    ```
-  </Accordion>
+When `auto_update: true` is configured, fields automatically process when new patient logs are added to the system. This happens in the background without additional API calls.
 
-  <Accordion title="Monitoring: Track Processing Status">
-    ```python
-    import time
-    
-    def monitor_field_processing(api_key: str, field_id: str, patient_ids: list):
-        """Monitor AI processing progress for a field across patients"""
-        
-        total_patients = len(patient_ids)
-        completed = 0
-        failed = 0
-        
-        while completed + failed < total_patients:
-            # Check status for all patients
-            for patient_id in patient_ids:
-                values = get_patient_field_values(api_key, patient_id)
-                field_value = next((v for v in values if v['field_definition_id'] == field_id), None)
-                
-                if field_value:
-                    if field_value['status'] in ['ready', 'pending_approval']:
-                        completed += 1
-                    elif field_value['status'] == 'failed':
-                        failed += 1
-            
-            print(f"Progress: {completed}/{total_patients} completed, {failed} failed")
-            
-            if completed + failed < total_patients:
-                time.sleep(10)  # Check every 10 seconds
-        
-        return {"completed": completed, "failed": failed}
-    
-    # Usage
-    status = monitor_field_processing(
-        "your_api_key",
-        bp_field["id"], 
-        patient_ids[:10]  # Monitor first 10 patients
-    )
-    ```
-  </Accordion>
+**How it works:**
+1. New patient log is created in the system
+2. NarraFields detects the new log
+3. Fields with `auto_update: true` automatically queue for processing
+4. AI extracts values from the new log content
+5. Results follow the same approval workflow if `requires_approval: true`
 
-  <Accordion title="Analysis: Generate Clinical Reports">
-    ```python
-    def generate_bp_compliance_report(api_key: str, field_id: str):
-        """Generate blood pressure compliance report"""
-        
-        # Get all patients in workspace
-        patients = get_all_patients_in_workspace("workspace_123")
-        
-        results = {
-            "total_patients": len(patients),
-            "bp_documented": 0,
-            "bp_missing": 0,
-            "hypertensive": 0,
-            "normal": 0,
-            "ai_confidence_avg": 0
-        }
-        
-        confidence_scores = []
-        
-        for patient in patients:
-            values = get_patient_field_values(api_key, patient["id"])
-            bp_value = next((v for v in values if v['field_definition_id'] == field_id), None)
-            
-            if bp_value and bp_value['current_value']:
-                if bp_value['current_value'] != "BP not recorded":
-                    results["bp_documented"] += 1
-                    
-                    # Parse BP reading (basic example)
-                    if "/" in bp_value['current_value']:
-                        systolic = int(bp_value['current_value'].split("/")[0])
-                        if systolic >= 140:
-                            results["hypertensive"] += 1
-                        else:
-                            results["normal"] += 1
-                    
-                    # Track AI confidence if available
-                    if bp_value.get('ai_metadata'):
-                        confidence_scores.append(bp_value['ai_metadata'].get('confidence_score', 0))
-                else:
-                    results["bp_missing"] += 1
-            else:
-                results["bp_missing"] += 1
-        
-        if confidence_scores:
-            results["ai_confidence_avg"] = sum(confidence_scores) / len(confidence_scores)
-        
-        return results
-    
-    # Generate report
-    report = generate_bp_compliance_report("your_api_key", bp_field["id"])
-    print(f"BP Documentation: {report['bp_documented']}/{report['total_patients']} patients")
-    print(f"Hypertensive patients: {report['hypertensive']}")
-    print(f"Average AI confidence: {report['ai_confidence_avg']:.2f}")
-    ```
-  </Accordion>
-</AccordionGroup>
+**Processing time:** Typically completes within 5-10 seconds of log creation.
 
-### Auto-Update Integration
+### Processing Triggers
 
-NarraFields automatically processes fields when new patient logs are created, if `auto_update` is enabled:
+NarraFields supports two processing triggers:
 
-```python
-# This happens automatically when logs are created via existing endpoints
-def create_patient_log_with_auto_fields(api_key: str, patient_id: str, log_content: str):
-    """Create patient log - auto-update fields will process automatically"""
-    
-    # Create log via existing patient logs endpoint
-    log_response = requests.post(
-        f"https://your-api-domain.com/api/v1/patients/{patient_id}/logs",
-        headers={"X-API-Key": api_key},
-        json={"content": log_content, "type": "clinical_note"}
-    )
-    
-    # Auto-update fields will process in background
-    # Check field values after a few seconds to see results
-    
-    time.sleep(3)  # Allow processing time
-    
-    # Check for updated field values
-    field_values = get_patient_field_values(api_key, patient_id)
-    
-    print("Auto-updated fields:")
-    for value in field_values:
-        if value['last_updated'] == log_response.json()['created_at']:
-            print(f"  {value['field_name']}: {value['current_value']}")
+1. **Manual Processing** (`MANUAL_API_CALL`)
+   - Triggered via the `/process` endpoint
+   - Processes specific patients or all patients in workspace
+   - Immediate control over when processing occurs
 
-# Usage
-create_patient_log_with_auto_fields(
-    "your_api_key",
-    "patient_001", 
-    "Patient reports blood pressure 145/90, mild headache. Prescribed lisinopril 10mg daily."
-)
-```
-
-<Note>
-Auto-update processing typically completes within 5-10 seconds of log creation. Fields with `requires_approval: true` will show up in `pending_approval` status and require manual approval via the approval endpoints.
-</Note>
+2. **Auto-Update** (`AUTO_UPDATE_NEW_LOGS`)
+   - Triggered automatically when new logs are added
+   - Only processes fields with `auto_update: true`
+   - Background processing without manual intervention
 
 ## Related Endpoints
 
