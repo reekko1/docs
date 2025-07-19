@@ -273,26 +273,44 @@ Configure how AI processes your fields with precise control over automation, app
 
 ### How You Control AI Processing
 
+When creating each field, you set three key processing behaviors:
+
 <AccordionGroup>
-  <Accordion title="Processing Triggers">
-    **Manual Processing**: You choose when to process and which patients
+  <Accordion title="Auto-Update">
+    **Enabled**: AI automatically processes this field whenever new patient notes are added
     
-    **Auto-Update**: Automatically processes when new notes are added
+    **Disabled**: AI only processes when you manually trigger it
     
-    **Overwrite Protection**: Preserves manual entries unless you choose otherwise
+    **Best for Auto-Update**: Vital signs, lab values, medication changes - objective data you want tracked immediately
+    
+    **Best for Manual**: Diagnoses, treatment plans, clinical assessments - important decisions you want to control
   </Accordion>
 
-  <Accordion title="Approval Settings">
-    **Auto-Approve**: Objective data (vital signs, lab values) saves immediately
+  <Accordion title="Overwrite Existing">
+    **Enabled**: AI will update the field even if someone manually entered a value
     
-    **Require Review**: Clinical judgments wait for your approval before saving
+    **Disabled**: AI skips fields that already have manual entries, preserving your work
     
-    **Custom Fallbacks**: Define what AI should do when information isn't clear
+    **Example**: Blood pressure field set to "don't overwrite" - if a nurse manually enters 120/80, AI won't change it even if new notes mention different readings
+  </Accordion>
+
+  <Accordion title="Requires Approval">
+    **Enabled**: AI suggestions wait for your approval before being saved
+    
+    **Disabled**: AI extractions are saved immediately without review
+    
+    **Best for Approval**: Clinical judgments, diagnoses, risk assessments - anything requiring medical review
+    
+    **Best for Auto-Save**: Objective measurements, dates, clearly documented facts
   </Accordion>
 </AccordionGroup>
 
-**Example Setup:**
-Field: "Primary Diagnosis" → Auto-update enabled → Requires approval → Fallback: "Pending evaluation"
+**Real Configuration Example:**
+- **Field**: "Primary Diagnosis"
+- **Auto-Update**: Enabled (process when new notes added)
+- **Overwrite Existing**: Disabled (preserve manual diagnoses)  
+- **Requires Approval**: Enabled (medical team reviews before saving)
+- **Fallback**: "If diagnosis unclear, respond with 'Diagnosis pending further evaluation'"
 
 ## Step 3: Review and Use Your Data
 
