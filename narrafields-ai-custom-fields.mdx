@@ -212,6 +212,10 @@ fields.forEach(field => {
 
 Trigger AI processing for specific fields and patients. This is typically used for manual processing or batch operations.
 
+<Note>
+If `patient_ids` is omitted or is an empty array, the system will process **all patients** in the workspace. This is useful for bulk operations.
+</Note>
+
 <CodeGroup>
 ```bash cURL
 curl -X POST "https://your-api-domain.com/api/v1/custom-fields/process-ai" \
@@ -228,17 +232,20 @@ curl -X POST "https://your-api-domain.com/api/v1/custom-fields/process-ai" \
 ```
 
 ```python Python
-def process_fields_with_ai(api_key: str, workspace_id: str, user_id: str, field_id: str, patient_ids: list):
+def process_fields_with_ai(api_key: str, workspace_id: str, user_id: str, field_id: str, patient_ids: list = None):
     url = "https://your-api-domain.com/api/v1/custom-fields/process-ai"
     
     payload = {
         "workspace_id": workspace_id,
         "user_id": user_id,
         "field_definition_id": field_id,
-        "patient_ids": patient_ids,
         "trigger_type": "manual_api_call",
         "triggered_by": user_id
     }
+    
+    # Only include patient_ids if provided
+    if patient_ids is not None:
+        payload["patient_ids"] = patient_ids
     
     headers = {
         "X-API-Key": api_key,
@@ -257,22 +264,35 @@ result = process_fields_with_ai(
     ["patient_001", "patient_002", "patient_003"]
 )
 
+# Or process ALL patients in workspace
+result_all = process_fields_with_ai(
+    "your_api_key", 
+    "workspace_123",
+    "user_123",
+    "field_abc123"
+    # Omitting patient_ids processes all patients
+)
+
 print(f"Processing started for {result['total_patients']} patients")
 print(f"Success: {result['success']}")
 ```
 
 ```javascript JavaScript
-async function processFieldsWithAI(apiKey, workspaceId, userId, fieldId, patientIds) {
+async function processFieldsWithAI(apiKey, workspaceId, userId, fieldId, patientIds = null) {
   const url = 'https://your-api-domain.com/api/v1/custom-fields/process-ai';
   
   const payload = {
     workspace_id: workspaceId,
     user_id: userId,
     field_definition_id: fieldId,
-    patient_ids: patientIds,
     trigger_type: 'manual_api_call',
     triggered_by: userId
   };
+  
+  // Only include patient_ids if provided
+  if (patientIds !== null) {
+    payload.patient_ids = patientIds;
+  }
   
   const response = await fetch(url, {
     method: 'POST',
@@ -293,6 +313,15 @@ const result = await processFieldsWithAI(
   'user_123',
   'field_abc123', 
   ['patient_001', 'patient_002', 'patient_003']
+);
+
+// Or process ALL patients in workspace
+const resultAll = await processFieldsWithAI(
+  'your_api_key',
+  'workspace_123',
+  'user_123',
+  'field_abc123'
+  // Omitting patientIds processes all patients
 );
 
 console.log(`Processing ${result.total_patients} patients`);
