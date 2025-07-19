@@ -786,100 +786,121 @@ const result = await rejectAISuggestion(
   </Accordion>
 </AccordionGroup>
 
-## Audit Trail & Compliance
+## Audit Trail & Change Tracking
 
-NarraFields maintains comprehensive audit trails for all field operations, ensuring healthcare compliance and providing complete change tracking for clinical data.
+NarraFields maintains audit trails for all field operations, providing change tracking and traceability for clinical data management.
 
 ### What Gets Audited
 
-Every action on field values creates an audit entry tracking:
+The system tracks five types of audit events:
 
 <AccordionGroup>
-  <Accordion title="AI Processing Events">
-    **Automatic tracking for AI operations:**
+  <Accordion title="Field Value Creation">
+    **When field values are first created:**
     ```json
     {
-      "action": "ai_processing_completed",
+      "action": "CREATED",
+      "timestamp": "2024-01-15T10:30:00Z",
+      "value": null,
+      "actor": "dr_smith_123",
+      "metadata": {
+        "field_definition_id": "field_abc123",
+        "patient_id": "patient_001"
+      }
+    }
+    ```
+    
+    **Tracks the initial creation** of field value entries when fields are added to patients.
+  </Accordion>
+
+  <Accordion title="AI Processing Events">
+    **When AI extracts values from patient logs:**
+    ```json
+    {
+      "action": "AI_PROCESSED",
       "timestamp": "2024-01-15T10:32:00Z",
-      "user_id": "system",
-      "details": {
+      "value": "Type 2 Diabetes Mellitus",
+      "actor": "system",
+      "metadata": {
         "confidence_score": 0.92,
-        "processing_time": 0.75,
-        "model_used": "gpt-4o-mini",
+        "processing_time_ms": 750,
         "input_tokens": 1250,
         "output_tokens": 45,
+        "total_tokens": 1295,
         "citations": ["log_456", "log_789"],
-        "used_fallback": false
+        "trigger": "MANUAL_API_CALL",
+        "triggered_by": "dr_smith_123"
       }
     }
     ```
     
-    **AI processing events include:**
-    - Processing start/completion times
-    - Model confidence scores
+    **AI processing metadata includes:**
+    - Confidence score (0.0 to 1.0)
+    - Processing time in milliseconds
     - Token usage for cost tracking
-    - Citation links to source logs
-    - Whether fallback strategy was used
-    - Error details if processing failed
+    - Citations linking to source patient logs
+    - Processing trigger (manual or auto-update)
   </Accordion>
 
-  <Accordion title="Human Actions">
-    **Manual updates and approvals:**
+  <Accordion title="Manual Updates">
+    **When users manually edit field values:**
     ```json
     {
-      "action": "manual_update",
-      "timestamp": "2024-01-15T14:22:00Z", 
-      "user_id": "dr_smith_123",
-      "details": {
-        "previous_value": "Type 2 Diabetes",
-        "new_value": "Type 2 Diabetes Mellitus with complications",
-        "reason": "Updated based on latest lab results"
+      "action": "EDITED",
+      "timestamp": "2024-01-15T14:22:00Z",
+      "value": "Type 2 Diabetes Mellitus with complications",
+      "actor": "dr_smith_123",
+      "metadata": {
+        "previous_value": "Type 2 Diabetes Mellitus",
+        "previous_type": "AI_GENERATED",
+        "update_type": "MANUAL"
       }
     }
     ```
     
-    **Human action tracking:**
-    - Manual value updates
-    - Approval/rejection decisions
-    - Status changes
-    - User-provided reasoning/notes
-    - Previous vs new values
+    **Manual edit tracking includes:**
+    - Previous value before the change
+    - Previous value type (manual, AI-generated, etc.)
+    - Update mechanism used
   </Accordion>
 
-  <Accordion title="System Events">
-    **Automated system changes:**
+  <Accordion title="Approval Actions">
+    **When users approve AI suggestions:**
     ```json
     {
-      "action": "auto_update_triggered",
-      "timestamp": "2024-01-15T16:45:00Z",
-      "user_id": "system",
-      "details": {
-        "trigger_source": "new_patient_log",
-        "log_id": "log_789",
-        "field_config": {
-          "auto_update": true,
-          "overwrite_existing": false
-        }
+      "action": "APPROVED",
+      "timestamp": "2024-01-15T11:15:00Z",
+      "value": "Type 2 Diabetes Mellitus",
+      "actor": "dr_smith_123",
+      "metadata": {
+        "approved_suggestion": "Type 2 Diabetes Mellitus",
+        "original_confidence": 0.92
       }
     }
     ```
     
-    **System events include:**
-    - Auto-update triggers
-    - Field definition changes
-    - Status transitions
-    - Configuration updates
-    - Data migrations
+    **When users reject AI suggestions:**
+    ```json
+    {
+      "action": "REJECTED",
+      "timestamp": "2024-01-15T11:18:00Z",
+      "value": null,
+      "actor": "dr_smith_123",
+      "metadata": {
+        "rejected_suggestion": "Type 2 Diabetes Mellitus"
+      }
+    }
+    ```
   </Accordion>
 </AccordionGroup>
 
 ### Accessing Audit Information
 
-Audit trails are included in all field value responses and can be accessed programmatically:
+Audit trails are included in field value responses and show the complete change history:
 
 ```python
-def get_field_audit_trail(api_key: str, patient_id: str, field_id: str):
-    """Retrieve complete audit trail for a specific field value"""
+def analyze_field_history(api_key: str, patient_id: str, field_id: str):
+    """Analyze the complete change history for a field value"""
     
     response = requests.get(
         f"https://your-api-domain.com/api/v1/custom-fields/values/patient/{patient_id}",
@@ -890,201 +911,159 @@ def get_field_audit_trail(api_key: str, patient_id: str, field_id: str):
     values = response.json()
     field_value = next((v for v in values if v['field_definition_id'] == field_id), None)
     
-    if field_value and 'audit_trail' in field_value:
-        print(f"Audit trail for {field_value['field_name']}:")
-        for entry in field_value['audit_trail']:
-            print(f"  {entry['timestamp']}: {entry['action']} by {entry['user_id']}")
-            if 'details' in entry:
-                print(f"    Details: {entry['details']}")
+    if not field_value:
+        return "Field value not found"
     
-    return field_value['audit_trail'] if field_value else []
+    audit_trail = field_value.get('audit_trail', {})
+    history = audit_trail.get('history', [])
+    
+    print(f"Field: {field_value['field_name']}")
+    print(f"Created: {audit_trail.get('created_at')} by {audit_trail.get('created_by')}")
+    print(f"Last Updated: {audit_trail.get('last_updated')}")
+    print(f"Current Value: {field_value.get('current_value')}")
+    print(f"Current Type: {field_value.get('current_value_type')}")
+    print("\nChange History:")
+    
+    for entry in history:
+        print(f"  {entry['timestamp']}: {entry['action']}")
+        print(f"    Actor: {entry['actor']}")
+        print(f"    Value: {entry.get('value')}")
+        if entry.get('metadata'):
+            print(f"    Metadata: {entry['metadata']}")
+        print()
+    
+    return history
 
 # Usage
-audit_history = get_field_audit_trail("your_api_key", "patient_001", "field_abc123")
+history = analyze_field_history("your_api_key", "patient_001", "field_abc123")
 ```
 
-### Compliance Features
+### Data Storage & Structure
 
-<AccordionGroup>
-  <Accordion title="HIPAA Compliance">
-    **Protected Health Information (PHI) handling:**
-    - All field values are stored with encryption at rest
-    - Audit trails include user identification but not PHI in logs
-    - Access is restricted by workspace isolation
-    - Data retention follows configured workspace policies
-    
-    **Audit trail security:**
-    ```json
-    {
-      "action": "value_accessed",
-      "timestamp": "2024-01-15T09:15:00Z",
-      "user_id": "dr_johnson_456",
-      "details": {
-        "access_method": "api",
-        "ip_address": "10.0.1.100",
-        "patient_id_hash": "sha256:abc123...",  // PHI is hashed
-        "field_name": "diagnosis"  // Field names are safe to log
-      }
-    }
-    ```
-  </Accordion>
+**Firestore Implementation:**
+- **Collections**: `custom_field_definitions` and `custom_field_values`
+- **Document IDs**: Field values use format `{field_definition_id}_{patient_id}`
+- **Workspace Isolation**: All documents include `workspace_id` for multi-tenancy
+- **Audit Storage**: Audit entries stored as arrays within field value documents
 
-  <Accordion title="Data Integrity">
-    **Change validation and tracking:**
-    - Every value change is logged with before/after states
-    - Digital signatures for critical field updates
-    - Tamper-evident audit log structure
-    - Cross-references to source patient logs
-    
-    **Integrity verification:**
-    ```python
-    def verify_field_integrity(audit_trail: list) -> bool:
-        """Verify field value changes are properly tracked"""
-        
-        for i in range(1, len(audit_trail)):
-            current = audit_trail[i]
-            previous = audit_trail[i-1]
-            
-            # Check timestamp ordering
-            if current['timestamp'] <= previous['timestamp']:
-                return False
-                
-            # Verify value transitions
-            if current['action'] == 'manual_update':
-                if 'previous_value' not in current['details']:
-                    return False
-        
-        return True
-    ```
-  </Accordion>
-
-  <Accordion title="Regulatory Reporting">
-    **Generate compliance reports:**
-    ```python
-    def generate_audit_report(workspace_id: str, start_date: str, end_date: str):
-        """Generate audit trail report for regulatory compliance"""
-        
-        report = {
-            "workspace_id": workspace_id,
-            "period": {"start": start_date, "end": end_date},
-            "field_modifications": 0,
-            "ai_processing_events": 0,
-            "manual_overrides": 0,
-            "users_active": set(),
-            "fields_modified": set()
+**Audit Trail Structure:**
+```json
+{
+  "audit_trail": {
+    "created_at": "2024-01-15T10:30:00Z",
+    "created_by": "dr_smith_123", 
+    "last_updated": "2024-01-15T14:22:00Z",
+    "history": [
+      {
+        "timestamp": "2024-01-15T10:30:00Z",
+        "action": "CREATED",
+        "value": null,
+        "actor": "dr_smith_123",
+        "metadata": {}
+      },
+      {
+        "timestamp": "2024-01-15T10:32:00Z", 
+        "action": "AI_PROCESSED",
+        "value": "Type 2 Diabetes Mellitus",
+        "actor": "system",
+        "metadata": {
+          "confidence_score": 0.92,
+          "processing_time_ms": 750,
+          "citations": ["log_456", "log_789"]
         }
-        
-        # Query all field values in workspace
-        all_values = get_all_field_values_in_workspace(workspace_id)
-        
-        for value in all_values:
-            for audit_entry in value.get('audit_trail', []):
-                entry_date = audit_entry['timestamp'][:10]  # Extract date
-                
-                if start_date <= entry_date <= end_date:
-                    report['users_active'].add(audit_entry['user_id'])
-                    report['fields_modified'].add(value['field_definition_id'])
-                    
-                    if audit_entry['action'] == 'ai_processing_completed':
-                        report['ai_processing_events'] += 1
-                    elif audit_entry['action'] == 'manual_update':
-                        report['manual_overrides'] += 1
-                    
-                    report['field_modifications'] += 1
-        
-        # Convert sets to counts
-        report['unique_users'] = len(report['users_active'])
-        report['unique_fields'] = len(report['fields_modified'])
-        del report['users_active']
-        del report['fields_modified']
-        
-        return report
-    
-    # Generate monthly report
-    monthly_report = generate_audit_report(
-        "workspace_123",
-        "2024-01-01", 
-        "2024-01-31"
-    )
-    ```
-  </Accordion>
-</AccordionGroup>
+      }
+    ]
+  }
+}
+```
 
 ## Approval & Rejection Workflows
 
-NarraFields implements a sophisticated approval system for AI-generated field values, ensuring clinical oversight while maintaining efficiency.
+NarraFields implements an approval system for AI-generated field values, allowing clinical oversight when needed.
 
-### Approval Process Overview
+### How Approval Works
+
+When a field is configured with `requires_approval: true`, AI suggestions are held for human review:
 
 ```mermaid
 graph TD
-    A[AI Processing] --> B{Requires Approval?}
-    B -->|No| C[Value Auto-Approved]
-    B -->|Yes| D[Pending Approval Status]
-    D --> E[Clinical Review]
+    A[AI Processing] --> B{requires_approval?}
+    B -->|false| C[Value Auto-Applied]
+    B -->|true| D[PENDING_APPROVAL Status]
+    D --> E[Clinician Review]
     E --> F{Decision}
-    F -->|Approve| G[Value Approved & Active]
-    F -->|Reject| H[Value Rejected]
-    H --> I[Manual Entry Required]
-    C --> J[Available for Use]
-    G --> J
+    F -->|Approve| G[Move to current_value]
+    F -->|Reject| H[Clear suggestion]
+    C --> I[READY Status]
+    G --> I
+    H --> I
 ```
 
-### Status Lifecycle
+### Field Status Lifecycle
 
-Field values progress through these statuses:
+Field values have these statuses during processing:
 
 <AccordionGroup>
   <Accordion title="Processing States">
-    **During AI Processing:**
-    - `processing` - AI extraction in progress
-    - `failed` - Processing encountered an error
-    - `completed` - Processing finished successfully
+    **While AI is working:**
+    - `READY` - Stable, no processing happening
+    - `QUEUED` - Queued for AI processing  
+    - `PROCESSING` - AI is actively extracting values
+    - `UPDATING` - In the process of updating the value
+    - `FAILED` - Processing encountered an error
     
     ```json
     {
-      "status": "processing",
-      "ai_metadata": {
-        "started_at": "2024-01-15T10:30:00Z",
-        "estimated_completion": "2024-01-15T10:32:00Z"
-      }
+      "status": "PROCESSING",
+      "current_value": null,
+      "pending_suggestion": null
     }
     ```
   </Accordion>
 
-  <Accordion title="Approval States">
-    **After Processing Completion:**
-    - `pending_approval` - Awaiting human review (requires_approval: true)
-    - `approved` - Clinician approved the AI suggestion
-    - `rejected` - Clinician rejected the AI suggestion
-    - `auto_approved` - Automatically approved (requires_approval: false)
+  <Accordion title="Approval State">
+    **When approval is required:**
+    - `PENDING_APPROVAL` - AI finished, suggestion awaiting review
     
     ```json
     {
-      "status": "pending_approval",
+      "status": "PENDING_APPROVAL",
+      "current_value": null,
       "pending_suggestion": {
         "value": "Type 2 Diabetes Mellitus",
         "confidence_score": 0.92,
-        "citations": ["log_456", "log_789"]
-      },
-      "current_value": null  // No active value until approved
+        "citations": ["log_456", "log_789"],
+        "used_fallback": false,
+        "ai_metadata": {
+          "processing_time": 0.75,
+          "model_used": "gpt-4o-mini",
+          "input_tokens": 1250,
+          "output_tokens": 45,
+          "total_tokens": 1295
+        }
+      }
     }
     ```
+    
+    **Key points:**
+    - `current_value` remains null until approved
+    - `pending_suggestion` contains the AI's proposed value
+    - Field is not usable clinically until approved
   </Accordion>
 
-  <Accordion title="Final States">
-    **Ready for Clinical Use:**
-    - `active` - Field has an approved, active value
-    - `manually_set` - Clinician manually entered/updated value
-    - `superseded` - Previous value replaced by newer entry
+  <Accordion title="Value Types">
+    **After approval or direct entry:**
+    - `MANUAL` - User-entered value
+    - `AI_GENERATED` - AI-extracted value (auto-approved)
+    - `HYBRID` - Originally AI-generated but manually edited
+    - `APPROVED` - AI-suggested value that user approved
     
     ```json
     {
-      "status": "active",
-      "current_value": "Type 2 Diabetes Mellitus",
-      "current_value_source": "ai_approved",  // or "manual_entry"
-      "approved_by": "dr_smith_123",
-      "approved_at": "2024-01-15T11:15:00Z"
+      "status": "READY",
+      "current_value": "Type 2 Diabetes Mellitus", 
+      "current_value_type": "APPROVED",
+      "pending_suggestion": null
     }
     ```
   </Accordion>
@@ -1092,9 +1071,12 @@ Field values progress through these statuses:
 
 ### Approval Actions
 
+The approval/rejection endpoints tested during our session:
+
 #### Approve AI Suggestion
 
-```bash
+<CodeGroup>
+```bash cURL
 curl -X POST "https://your-api-domain.com/api/v1/custom-fields/values/{value_id}/approve" \
   -H "X-API-Key: your_api_key_here" \
   -H "Content-Type: application/json" \
@@ -1106,25 +1088,76 @@ curl -X POST "https://your-api-domain.com/api/v1/custom-fields/values/{value_id}
   }'
 ```
 
+```python Python
+import requests
+
+def approve_suggestion(api_key: str, value_id: str, workspace_id: str, user_id: str, notes: str = ""):
+    """Approve an AI suggestion"""
+    
+    response = requests.post(
+        f"https://your-api-domain.com/api/v1/custom-fields/values/{value_id}/approve",
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        json={
+            "workspace_id": workspace_id,
+            "user_id": user_id,
+            "action": "approve",
+            "notes": notes
+        }
+    )
+    
+    return response.json()
+
+# Usage
+result = approve_suggestion(
+    "your_api_key",
+    "field_abc123_patient_001", 
+    "workspace_123",
+    "dr_smith_123",
+    "Confirmed via chart review"
+)
+```
+
+```javascript JavaScript
+const approveSuggestion = async (valueId, workspaceId, userId, notes = '') => {
+  const response = await fetch(`/api/v1/custom-fields/values/${valueId}/approve`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      workspace_id: workspaceId,
+      user_id: userId,
+      action: 'approve',
+      notes: notes
+    })
+  });
+  
+  return response.json();
+};
+
+// Usage
+const result = await approveSuggestion(
+  'field_abc123_patient_001',
+  'workspace_123', 
+  'dr_smith_123',
+  'Confirmed via chart review'
+);
+```
+</CodeGroup>
+
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Field value approved successfully",
-  "field_value": {
-    "id": "field_abc123_patient_001",
-    "status": "approved",
-    "current_value": "Type 2 Diabetes Mellitus",
-    "approved_by": "dr_smith_123",
-    "approved_at": "2024-01-15T11:15:00Z",
-    "approval_notes": "Reviewed and confirmed accurate based on latest labs"
-  }
+  "message": "Field value approved successfully"
 }
 ```
 
 #### Reject AI Suggestion
 
-```bash
+<CodeGroup>
+```bash cURL
 curl -X POST "https://your-api-domain.com/api/v1/custom-fields/values/{value_id}/reject" \
   -H "X-API-Key: your_api_key_here" \
   -H "Content-Type: application/json" \
@@ -1136,78 +1169,77 @@ curl -X POST "https://your-api-domain.com/api/v1/custom-fields/values/{value_id}
   }'
 ```
 
+```python Python
+def reject_suggestion(api_key: str, value_id: str, workspace_id: str, user_id: str, notes: str = ""):
+    """Reject an AI suggestion"""
+    
+    response = requests.post(
+        f"https://your-api-domain.com/api/v1/custom-fields/values/{value_id}/reject",
+        headers={"X-API-Key": api_key, "Content-Type": "application/json"},
+        json={
+            "workspace_id": workspace_id,
+            "user_id": user_id,
+            "action": "reject", 
+            "notes": notes
+        }
+    )
+    
+    return response.json()
+
+# Usage  
+result = reject_suggestion(
+    "your_api_key",
+    "field_abc123_patient_001",
+    "workspace_123", 
+    "dr_smith_123",
+    "Requires additional lab work"
+)
+```
+
+```javascript JavaScript
+const rejectSuggestion = async (valueId, workspaceId, userId, notes = '') => {
+  const response = await fetch(`/api/v1/custom-fields/values/${valueId}/reject`, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      workspace_id: workspaceId,
+      user_id: userId,
+      action: 'reject',
+      notes: notes
+    })
+  });
+  
+  return response.json();
+};
+
+// Usage
+const result = await rejectSuggestion(
+  'field_abc123_patient_001',
+  'workspace_123',
+  'dr_smith_123', 
+  'Requires additional lab work'
+);
+```
+</CodeGroup>
+
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Field value rejected",
-  "field_value": {
-    "id": "field_abc123_patient_001",
-    "status": "rejected",
-    "current_value": null,
-    "rejected_by": "dr_smith_123",
-    "rejected_at": "2024-01-15T11:18:00Z",
-    "rejection_reason": "AI confidence too low, requires additional testing"
-  }
+  "message": "Field value rejected successfully"
 }
 ```
 
-### Batch Approval Operations
+### Finding Pending Approvals
 
-For efficiency, approve multiple suggestions at once:
-
-```python
-def batch_approve_suggestions(api_key: str, approvals: list):
-    """Approve multiple AI suggestions in batch"""
-    
-    results = []
-    
-    for approval in approvals:
-        response = requests.post(
-            f"https://your-api-domain.com/api/v1/custom-fields/values/{approval['value_id']}/approve",
-            headers={"X-API-Key": api_key, "Content-Type": "application/json"},
-            json={
-                "workspace_id": approval['workspace_id'],
-                "user_id": approval['user_id'],
-                "action": "approve",
-                "notes": approval.get('notes', '')
-            }
-        )
-        
-        results.append({
-            "value_id": approval['value_id'],
-            "success": response.status_code == 200,
-            "response": response.json()
-        })
-    
-    return results
-
-# Usage: Approve high-confidence suggestions automatically
-high_confidence_approvals = [
-    {
-        "value_id": "field_abc123_patient_001",
-        "workspace_id": "workspace_123",
-        "user_id": "dr_smith_123",
-        "notes": "Auto-approved: High confidence (>0.9)"
-    },
-    {
-        "value_id": "field_abc123_patient_002", 
-        "workspace_id": "workspace_123",
-        "user_id": "dr_smith_123",
-        "notes": "Auto-approved: High confidence (>0.9)"
-    }
-]
-
-batch_results = batch_approve_suggestions("your_api_key", high_confidence_approvals)
-```
-
-### Approval Queue Management
-
-Build approval queues for clinical workflows:
+To build approval workflows, you can identify fields awaiting approval:
 
 ```python
-def get_pending_approvals(api_key: str, workspace_id: str, user_id: str = None):
-    """Get all field values pending approval in workspace"""
+def find_pending_approvals(api_key: str, workspace_id: str):
+    """Find all field values pending approval in workspace"""
     
     # Get all field definitions
     response = requests.get(
@@ -1217,88 +1249,29 @@ def get_pending_approvals(api_key: str, workspace_id: str, user_id: str = None):
     )
     
     definitions = response.json()
-    pending_queue = []
+    pending_items = []
     
-    # For each field requiring approval
-    approval_fields = [f for f in definitions if f.get('requires_approval', False)]
+    # Check each field requiring approval
+    for field_def in definitions:
+        if field_def.get('requires_approval', False):
+            # Note: In practice, you'd want a bulk endpoint for this
+            # For now, this shows the concept for individual patients
+            field_name = field_def['name']
+            print(f"Checking approval field: {field_name}")
+            
+            # You would iterate through your patient list here
+            # pending_items.append(any fields with status='PENDING_APPROVAL')
     
-    for field in approval_fields:
-        # This would need a bulk endpoint in practice
-        # For now, checking per patient is shown for completeness
-        field_values = get_all_values_for_field(api_key, field['id'])
-        
-        for value in field_values:
-            if value['status'] == 'pending_approval':
-                pending_queue.append({
-                    "value_id": value['id'],
-                    "patient_id": value['patient_id'],
-                    "field_name": field['name'],
-                    "suggested_value": value['pending_suggestion']['value'],
-                    "confidence": value['pending_suggestion']['confidence_score'],
-                    "citations": value['pending_suggestion']['citations'],
-                    "created_at": value['last_updated']
-                })
-    
-    # Sort by confidence score (highest first) or creation time
-    pending_queue.sort(key=lambda x: x['confidence'], reverse=True)
-    
-    return pending_queue
-
-# Build approval dashboard
-def create_approval_dashboard(api_key: str, workspace_id: str):
-    """Create data for approval dashboard UI"""
-    
-    pending = get_pending_approvals(api_key, workspace_id)
-    
-    dashboard_data = {
-        "total_pending": len(pending),
-        "high_confidence": len([p for p in pending if p['confidence'] > 0.9]),
-        "medium_confidence": len([p for p in pending if 0.7 <= p['confidence'] <= 0.9]),
-        "low_confidence": len([p for p in pending if p['confidence'] < 0.7]),
-        "by_field": {},
-        "oldest_pending": None,
-        "pending_items": pending[:10]  # Top 10 for UI
-    }
-    
-    # Group by field type
-    for item in pending:
-        field_name = item['field_name']
-        if field_name not in dashboard_data['by_field']:
-            dashboard_data['by_field'][field_name] = 0
-        dashboard_data['by_field'][field_name] += 1
-    
-    # Find oldest pending item
-    if pending:
-        oldest = min(pending, key=lambda x: x['created_at'])
-        dashboard_data['oldest_pending'] = oldest
-    
-    return dashboard_data
+    return pending_items
 
 # Usage
-dashboard = create_approval_dashboard("your_api_key", "workspace_123")
-print(f"Pending approvals: {dashboard['total_pending']}")
-print(f"High confidence: {dashboard['high_confidence']}")
+pending = find_pending_approvals("your_api_key", "workspace_123")
 ```
 
-### User Permissions & Roles
-
-Control who can approve different field types:
-
-```json
-{
-  "field": {
-    "name": "primary_diagnosis",
-    "requires_approval": true,
-    "approval_permissions": {
-      "required_role": "physician",
-      "allowed_users": ["dr_smith_123", "dr_jones_456"],
-      "department_restriction": "internal_medicine"
-    }
-  }
-}
-```
-
-**Note**: The approval permissions shown above represent the intended access control model. Current implementation relies on API key authentication, but user-role-based permissions can be implemented at the application layer.
+**Current Limitations:**
+- No bulk endpoint to query all pending approvals across workspace
+- Must check per-patient to find pending suggestions
+- No built-in approval queue management dashboard
 
 ## Advanced Configuration
 
