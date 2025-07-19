@@ -1,0 +1,681 @@
+---
+title: 'NarraFields Example Flows'
+description: 'Complete workflow examples for custom field automation in clinical documentation'
+---
+
+Real-world examples showing how to implement NarraFields automation from field creation through patient processing and approval workflows.
+
+<Info>
+**For newcomers**: These examples show complete workflows you can copy and adapt. Each flow includes the exact API calls, error handling, and business logic patterns.
+
+**For senior devs**: Production-ready implementation patterns with workspace isolation, error handling, and the approval system. Shows how to handle async processing, bulk operations, and multi-tenant security.
+</Info>
+
+## Complete Workflows
+
+### Flow 1: Basic Field Creation and Processing
+
+This example shows creating a field, processing patients, and handling the results.
+
+```python
+import requests
+import time
+
+# Configuration
+API_BASE = "https://api.narra.com"
+API_KEY = "your-api-key"
+WORKSPACE_ID = "ws_12345"
+USER_ID = "user_67890"
+
+headers = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
+
+def create_and_process_field():
+    """Complete field creation and processing workflow"""
+    
+    # Step 1: Create field definition
+    field_data = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "field": {
+            "name": "Current Pain Level",
+            "description": "Patient's current pain level on 1-10 scale",
+            "field_type": "Number",
+            "extraction_prompt": "Look for pain scale ratings, pain scores, or mentions of pain levels from 1-10. Extract the numerical value only.",
+            "requires_approval": False,  # Direct updates
+            "is_active": True
+        }
+    }
+    
+    response = requests.post(
+        f"{API_BASE}/api/v1/custom-fields/definitions",
+        headers=headers,
+        json=field_data
+    )
+    
+    if response.status_code != 200:
+        print(f"Failed to create field: {response.text}")
+        return
+    
+    field_id = response.json()["id"]
+    print(f"✅ Created field: {field_id}")
+    
+    # Step 2: Process specific patients
+    processing_data = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "field_definition_id": field_id,
+        "patient_ids": ["pt_001", "pt_002", "pt_003"]  # Specific patients
+    }
+    
+    response = requests.post(
+        f"{API_BASE}/api/v1/custom-fields/process",
+        headers=headers,
+        json=processing_data
+    )
+    
+    if response.status_code != 200:
+        print(f"Failed to start processing: {response.text}")
+        return
+    
+    print("✅ Processing started")
+    
+    # Step 3: Check results for each patient
+    time.sleep(30)  # Wait for processing to complete
+    
+    for patient_id in processing_data["patient_ids"]:
+        response = requests.get(
+            f"{API_BASE}/api/v1/custom-fields/values/patient/{patient_id}",
+            headers=headers,
+            params={"workspace_id": WORKSPACE_ID}
+        )
+        
+        if response.status_code == 200:
+            values = response.json()
+            for value in values:
+                if value["field_definition_id"] == field_id:
+                    print(f"Patient {patient_id}: Pain Level = {value['value']}")
+        else:
+            print(f"No values found for patient {patient_id}")
+
+if __name__ == "__main__":
+    create_and_process_field()
+```
+
+### Flow 2: Approval Workflow End-to-End
+
+This example demonstrates the complete approval process from field creation through approval/rejection.
+
+```python
+def approval_workflow_example():
+    """Complete approval workflow demonstration"""
+    
+    # Step 1: Create field requiring approval
+    field_data = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "field": {
+            "name": "Diagnosis Confidence",
+            "description": "AI confidence level in primary diagnosis",
+            "field_type": "Select",
+            "extraction_prompt": "Assess the confidence level in the primary diagnosis based on available evidence. Return: High, Medium, or Low.",
+            "requires_approval": True,  # Requires human review
+            "is_active": True,
+            "field_options": ["High", "Medium", "Low"]
+        }
+    }
+    
+    response = requests.post(
+        f"{API_BASE}/api/v1/custom-fields/definitions",
+        headers=headers,
+        json=field_data
+    )
+    
+    field_id = response.json()["id"]
+    print(f"✅ Created approval field: {field_id}")
+    
+    # Step 2: Process patients (creates pending suggestions)
+    processing_data = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "field_definition_id": field_id,
+        "patient_ids": ["pt_001"]  # Single patient for demo
+    }
+    
+    requests.post(f"{API_BASE}/api/v1/custom-fields/process", headers=headers, json=processing_data)
+    print("✅ Processing started - will create pending suggestions")
+    
+    time.sleep(30)  # Wait for AI processing
+    
+    # Step 3: Check for pending suggestions
+    response = requests.get(
+        f"{API_BASE}/api/v1/custom-fields/values/patient/pt_001",
+        headers=headers,
+        params={"workspace_id": WORKSPACE_ID}
+    )
+    
+    pending_suggestion = None
+    if response.status_code == 200:
+        values = response.json()
+        for value in values:
+            if (value["field_definition_id"] == field_id and 
+                value["status"] == "pending_approval"):
+                pending_suggestion = value
+                break
+    
+    if not pending_suggestion:
+        print("❌ No pending suggestion found")
+        return
+    
+    print(f"📋 Pending suggestion: {pending_suggestion['value']}")
+    print(f"   Reasoning: {pending_suggestion['notes']}")
+    
+    # Step 4a: Approve the suggestion
+    approval_data = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "action": "approve",
+        "notes": "Reviewed and confirmed accurate"
+    }
+    
+    response = requests.post(
+        f"{API_BASE}/api/v1/custom-fields/values/{pending_suggestion['id']}/approve",
+        headers=headers,
+        json=approval_data
+    )
+    
+    if response.status_code == 200:
+        print("✅ Suggestion approved")
+    else:
+        print(f"❌ Approval failed: {response.text}")
+    
+    # Alternative Step 4b: Reject the suggestion
+    # rejection_data = {
+    #     "workspace_id": WORKSPACE_ID,
+    #     "user_id": USER_ID,
+    #     "action": "reject",
+    #     "notes": "Confidence level appears too high given limited evidence"
+    # }
+    # 
+    # response = requests.post(
+    #     f"{API_BASE}/api/v1/custom-fields/values/{pending_suggestion['id']}/reject",
+    #     headers=headers,
+    #     json=rejection_data
+    # )
+    
+    # Step 5: Verify final status
+    response = requests.get(
+        f"{API_BASE}/api/v1/custom-fields/values/patient/pt_001",
+        headers=headers,
+        params={"workspace_id": WORKSPACE_ID}
+    )
+    
+    if response.status_code == 200:
+        values = response.json()
+        for value in values:
+            if value["field_definition_id"] == field_id:
+                print(f"Final status: {value['status']}")
+                print(f"Final value: {value['value']}")
+
+approval_workflow_example()
+```
+
+### Flow 3: Manual Field Updates
+
+This example shows how to manually update field values, including handling different field types.
+
+```python
+def manual_update_examples():
+    """Examples of manual field value updates"""
+    
+    # Assume we have a field already created
+    field_id = "field_12345"
+    patient_id = "pt_001"
+    
+    # Example 1: Update a Number field
+    number_update = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "update": {
+            "value": "7",
+            "notes": "Patient reported pain level during rounds"
+        }
+    }
+    
+    response = requests.put(
+        f"{API_BASE}/api/v1/custom-fields/values/patient/{patient_id}/field/{field_id}",
+        headers=headers,
+        json=number_update
+    )
+    
+    if response.status_code == 200:
+        print("✅ Number field updated")
+    
+    # Example 2: Update a Multi-Select field
+    multi_select_update = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "update": {
+            "value": ["Diabetes", "Hypertension", "Obesity"],  # Multiple values
+            "notes": "Updated from latest chart review"
+        }
+    }
+    
+    # Example 3: Update a Date field
+    date_update = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "update": {
+            "value": "2024-01-15",
+            "notes": "Confirmed surgery date from OR schedule"
+        }
+    }
+    
+    # Example 4: Clear a field value
+    clear_update = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "update": {
+            "value": None,
+            "notes": "Value no longer applicable"
+        }
+    }
+    
+    print("✅ Manual update examples completed")
+
+manual_update_examples()
+```
+
+### Flow 4: Bulk Patient Processing
+
+This example shows processing all patients in a workspace and handling the results.
+
+```python
+def bulk_processing_workflow():
+    """Process all patients in workspace efficiently"""
+    
+    field_id = "field_12345"
+    
+    # Step 1: Start bulk processing (all patients)
+    bulk_data = {
+        "workspace_id": WORKSPACE_ID,
+        "user_id": USER_ID,
+        "field_definition_id": field_id
+        # Note: Omitting patient_ids processes ALL patients
+    }
+    
+    response = requests.post(
+        f"{API_BASE}/api/v1/custom-fields/process",
+        headers=headers,
+        json=bulk_data
+    )
+    
+    if response.status_code != 200:
+        print(f"❌ Bulk processing failed: {response.text}")
+        return
+    
+    print("✅ Bulk processing started for all patients")
+    
+    # Step 2: Monitor processing progress
+    # (In production, you'd use webhooks or polling)
+    time.sleep(120)  # Wait longer for bulk processing
+    
+    # Step 3: Get all field definitions to find our results
+    response = requests.get(
+        f"{API_BASE}/api/v1/custom-fields/definitions",
+        headers=headers,
+        params={"workspace_id": WORKSPACE_ID}
+    )
+    
+    if response.status_code != 200:
+        print("❌ Failed to fetch field definitions")
+        return
+    
+    definitions = response.json()
+    our_field = next((f for f in definitions if f["id"] == field_id), None)
+    
+    if not our_field:
+        print("❌ Field not found")
+        return
+    
+    print(f"✅ Processed field: {our_field['name']}")
+    print(f"   Total values: {our_field.get('value_count', 0)}")
+    print(f"   Pending approvals: {our_field.get('pending_count', 0)}")
+    
+    # Step 4: Handle any errors or special cases
+    if our_field.get('last_error'):
+        print(f"⚠️  Last error: {our_field['last_error']}")
+    
+    return our_field
+
+bulk_processing_workflow()
+```
+
+### Flow 5: Error Handling and Recovery
+
+This example shows robust error handling patterns for production use.
+
+```python
+import logging
+from typing import Optional, Dict, Any
+
+class NarraFieldsClient:
+    """Production-ready client with error handling"""
+    
+    def __init__(self, api_key: str, workspace_id: str, user_id: str):
+        self.api_key = api_key
+        self.workspace_id = workspace_id
+        self.user_id = user_id
+        self.base_url = "https://api.narra.com"
+        self.headers = {
+            "X-API-Key": api_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Setup logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+    
+    def _make_request(self, method: str, endpoint: str, **kwargs) -> Optional[Dict[Any, Any]]:
+        """Make API request with error handling"""
+        url = f"{self.base_url}{endpoint}"
+        
+        try:
+            response = requests.request(method, url, headers=self.headers, **kwargs)
+            
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 400:
+                self.logger.error(f"Bad request: {response.text}")
+                return None
+            elif response.status_code == 401:
+                self.logger.error("Authentication failed - check API key")
+                return None
+            elif response.status_code == 404:
+                self.logger.error(f"Endpoint not found: {endpoint}")
+                return None
+            elif response.status_code == 500:
+                self.logger.error(f"Server error: {response.text}")
+                return None
+            else:
+                self.logger.error(f"Unexpected status {response.status_code}: {response.text}")
+                return None
+                
+        except requests.RequestException as e:
+            self.logger.error(f"Request failed: {e}")
+            return None
+    
+    def create_field_safe(self, field_config: Dict[Any, Any]) -> Optional[str]:
+        """Create field with validation and error handling"""
+        
+        # Validate required fields
+        required_fields = ["name", "description", "field_type", "extraction_prompt"]
+        for field in required_fields:
+            if field not in field_config:
+                self.logger.error(f"Missing required field: {field}")
+                return None
+        
+        # Add workspace and user info
+        data = {
+            "workspace_id": self.workspace_id,
+            "user_id": self.user_id,
+            "field": field_config
+        }
+        
+        result = self._make_request("POST", "/api/v1/custom-fields/definitions", json=data)
+        
+        if result:
+            field_id = result.get("id")
+            self.logger.info(f"Created field: {field_id}")
+            return field_id
+        
+        return None
+    
+    def process_with_retry(self, field_id: str, patient_ids: Optional[list] = None, max_retries: int = 3) -> bool:
+        """Process field with retry logic"""
+        
+        data = {
+            "workspace_id": self.workspace_id,
+            "user_id": self.user_id,
+            "field_definition_id": field_id
+        }
+        
+        if patient_ids:
+            data["patient_ids"] = patient_ids
+        
+        for attempt in range(max_retries):
+            result = self._make_request("POST", "/api/v1/custom-fields/process", json=data)
+            
+            if result:
+                self.logger.info(f"Processing started (attempt {attempt + 1})")
+                return True
+            
+            if attempt < max_retries - 1:
+                wait_time = 2 ** attempt  # Exponential backoff
+                self.logger.warning(f"Attempt {attempt + 1} failed, retrying in {wait_time}s")
+                time.sleep(wait_time)
+        
+        self.logger.error("Processing failed after all retries")
+        return False
+    
+    def wait_for_completion(self, patient_id: str, field_id: str, timeout: int = 300) -> Optional[Dict[Any, Any]]:
+        """Wait for processing to complete with timeout"""
+        
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            result = self._make_request(
+                "GET", 
+                f"/api/v1/custom-fields/values/patient/{patient_id}",
+                params={"workspace_id": self.workspace_id}
+            )
+            
+            if result:
+                for value in result:
+                    if (value["field_definition_id"] == field_id and 
+                        value["status"] in ["completed", "pending_approval"]):
+                        return value
+            
+            time.sleep(5)  # Check every 5 seconds
+        
+        self.logger.error(f"Processing timeout after {timeout}s")
+        return None
+
+# Usage example with error handling
+def production_workflow_example():
+    """Production-ready workflow with comprehensive error handling"""
+    
+    client = NarraFieldsClient(
+        api_key="your-api-key",
+        workspace_id="ws_12345",
+        user_id="user_67890"
+    )
+    
+    # Step 1: Create field safely
+    field_config = {
+        "name": "Risk Assessment",
+        "description": "Patient fall risk assessment",
+        "field_type": "Select",
+        "extraction_prompt": "Assess fall risk based on mobility, medication, and history. Return: Low, Medium, or High.",
+        "requires_approval": True,
+        "field_options": ["Low", "Medium", "High"]
+    }
+    
+    field_id = client.create_field_safe(field_config)
+    if not field_id:
+        print("❌ Failed to create field")
+        return
+    
+    # Step 2: Process with retry
+    success = client.process_with_retry(field_id, ["pt_001", "pt_002"])
+    if not success:
+        print("❌ Failed to start processing")
+        return
+    
+    # Step 3: Wait for completion
+    for patient_id in ["pt_001", "pt_002"]:
+        result = client.wait_for_completion(patient_id, field_id)
+        if result:
+            print(f"✅ Patient {patient_id}: {result['value']} ({result['status']})")
+        else:
+            print(f"❌ Patient {patient_id}: Processing failed or timed out")
+
+production_workflow_example()
+```
+
+## Common Integration Patterns
+
+### React Native Mobile App Integration
+
+```typescript
+// hooks/useNarraFields.ts
+import { useState, useEffect } from 'react';
+
+interface FieldValue {
+  id: string;
+  value: any;
+  status: 'completed' | 'pending_approval' | 'rejected';
+  notes: string;
+  field_definition_id: string;
+}
+
+export const useNarraFields = (patientId: string) => {
+  const [fieldValues, setFieldValues] = useState<FieldValue[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchFieldValues = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `/api/v1/custom-fields/values/patient/${patientId}?workspace_id=${workspaceId}`,
+        {
+          headers: { 'X-API-Key': apiKey }
+        }
+      );
+
+      if (response.ok) {
+        const values = await response.json();
+        setFieldValues(values);
+      } else {
+        setError('Failed to fetch field values');
+      }
+    } catch (err) {
+      setError('Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateFieldValue = async (fieldId: string, value: any, notes?: string) => {
+    try {
+      const response = await fetch(
+        `/api/v1/custom-fields/values/patient/${patientId}/field/${fieldId}`,
+        {
+          method: 'PUT',
+          headers: {
+            'X-API-Key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            workspace_id: workspaceId,
+            user_id: userId,
+            update: { value, notes }
+          })
+        }
+      );
+
+      if (response.ok) {
+        await fetchFieldValues(); // Refresh data
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    fetchFieldValues();
+  }, [patientId]);
+
+  return {
+    fieldValues,
+    loading,
+    error,
+    refetch: fetchFieldValues,
+    updateValue: updateFieldValue
+  };
+};
+```
+
+### Dashboard Analytics Integration
+
+```python
+def generate_field_analytics(workspace_id: str) -> Dict[str, Any]:
+    """Generate analytics for custom fields usage"""
+    
+    # Get all field definitions
+    response = requests.get(
+        f"{API_BASE}/api/v1/custom-fields/definitions",
+        headers=headers,
+        params={"workspace_id": workspace_id}
+    )
+    
+    definitions = response.json()
+    
+    analytics = {
+        "total_fields": len(definitions),
+        "active_fields": len([f for f in definitions if f.get("is_active", True)]),
+        "approval_fields": len([f for f in definitions if f.get("requires_approval", False)]),
+        "field_types": {},
+        "completion_rates": {},
+        "pending_approvals": 0
+    }
+    
+    for field in definitions:
+        # Count field types
+        field_type = field.get("field_type", "Unknown")
+        analytics["field_types"][field_type] = analytics["field_types"].get(field_type, 0) + 1
+        
+        # Calculate completion rates
+        total_patients = field.get("total_patients", 0)
+        completed_values = field.get("value_count", 0)
+        
+        if total_patients > 0:
+            completion_rate = (completed_values / total_patients) * 100
+            analytics["completion_rates"][field["name"]] = completion_rate
+        
+        # Count pending approvals
+        analytics["pending_approvals"] += field.get("pending_count", 0)
+    
+    return analytics
+
+# Usage in dashboard
+analytics = generate_field_analytics("ws_12345")
+print(f"Field utilization: {analytics['completion_rates']}")
+print(f"Pending reviews: {analytics['pending_approvals']}")
+```
+
+## Best Practices Summary
+
+### Security and Multi-Tenancy
+- Always include `workspace_id` and `user_id` in requests
+- Validate API responses before processing
+- Use proper error handling for production systems
+
+### Performance Optimization
+- Use bulk processing for large patient sets
+- Implement retry logic with exponential backoff
+- Monitor processing times and set appropriate timeouts
+
+### Approval Workflow Management
+- Set `requires_approval: true` for sensitive fields
+- Implement approval queues in your UI
+- Track approval metrics for compliance
+
+### Error Recovery
+- Log all API interactions for debugging
+- Implement graceful degradation when APIs fail
+- Provide user feedback for processing status
+
+These patterns provide a solid foundation for integrating NarraFields into your clinical documentation workflow.

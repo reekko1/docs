@@ -61,7 +61,13 @@
           {
             "group": "AI Services",
             "pages": [
-              "narrafields-ai-custom-fields",
+              {
+                "group": "NarraFields",
+                "pages": [
+                  "narrafields-ai-custom-fields",
+                  "narrafields-example-flows"
+                ]
+              },
               "api-reference/vision-logs",
               "api-reference/audio-transcriptions"
             ]
