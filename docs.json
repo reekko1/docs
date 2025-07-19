@@ -61,6 +61,7 @@
           {
             "group": "AI Services",
             "pages": [
+              "narrafields-ai-custom-fields",
               "api-reference/vision-logs",
               "api-reference/audio-transcriptions"
             ]
