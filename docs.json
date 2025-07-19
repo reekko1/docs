@@ -64,6 +64,7 @@
               {
                 "group": "NarraFields",
                 "pages": [
+                  "narrafields-for-teams",
                   "narrafields-ai-custom-fields",
                   "narrafields-example-flows"
                 ]
