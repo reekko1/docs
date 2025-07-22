@@ -343,6 +343,123 @@ console.log(`Success: ${result.success}`);
 Processing runs in the background using concurrent Map-Reduce patterns. For large patient populations (100+ patients), processing typically completes within 2-3 minutes. Monitor status via the field values endpoints.
 </Tip>
 
+### Trigger Auto-Update Processing
+
+Trigger auto-update processing for fields with `auto_update=true`. This endpoint is typically called by the frontend after creating new patient logs to ensure real-time field processing.
+
+<Note>
+This endpoint only processes fields that have `auto_update: true` configuration. It's designed to be called immediately after log creation for real-time updates.
+</Note>
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://your-api-domain.com/api/v1/custom-fields/auto-update" \
+  -H "X-API-Key: your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workspace_id": "your_workspace_id",
+    "patient_id": "patient_001"
+  }'
+```
+
+```python Python
+def trigger_auto_update(api_key: str, workspace_id: str, patient_id: str):
+    url = "https://your-api-domain.com/api/v1/custom-fields/auto-update"
+    
+    payload = {
+        "workspace_id": workspace_id,
+        "patient_id": patient_id
+    }
+    
+    headers = {
+        "X-API-Key": api_key,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    return response.json()
+
+# Typical workflow: after creating a patient log
+def create_log_and_trigger_fields(api_key: str, workspace_id: str, patient_id: str, log_data: dict):
+    # 1. Create patient log
+    log_response = create_patient_log(api_key, workspace_id, patient_id, log_data)
+    
+    # 2. Trigger auto-update for fields
+    if log_response.get('success'):
+        auto_update_response = trigger_auto_update(api_key, workspace_id, patient_id)
+        print(f"Auto-update triggered: {auto_update_response['message']}")
+    
+    return auto_update_response
+
+# Usage
+result = trigger_auto_update("your_api_key", "workspace_123", "patient_001")
+print(f"Processing started for {result['total_patients']} patient")
+print(f"Fields being processed: {result['message']}")
+```
+
+```javascript JavaScript
+async function triggerAutoUpdate(apiKey, workspaceId, patientId) {
+  const url = 'https://your-api-domain.com/api/v1/custom-fields/auto-update';
+  
+  const payload = {
+    workspace_id: workspaceId,
+    patient_id: patientId
+  };
+  
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-API-Key': apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+  
+  return await response.json();
+}
+
+// Typical frontend workflow
+async function createLogAndTriggerFields(apiKey, workspaceId, patientId, logData) {
+  try {
+    // 1. Create patient log
+    const logResult = await createPatientLog(apiKey, workspaceId, patientId, logData);
+    
+    // 2. Trigger auto-update for fields
+    if (logResult.success) {
+      const autoUpdateResult = await triggerAutoUpdate(apiKey, workspaceId, patientId);
+      console.log(`Auto-update triggered: ${autoUpdateResult.message}`);
+      
+      // 3. Optionally show loading state for field processing
+      showFieldProcessingStatus(autoUpdateResult);
+    }
+    
+    return logResult;
+  } catch (error) {
+    console.error('Error in log creation and field processing:', error);
+  }
+}
+
+// Usage
+const result = await triggerAutoUpdate('your_api_key', 'workspace_123', 'patient_001');
+console.log(`Processing ${result.total_patients} patient`);
+console.log(`Fields being processed: ${result.message}`);
+```
+</CodeGroup>
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Auto-update processing started for 7 fields",
+  "total_patients": 1,
+  "processing_type": "async"
+}
+```
+
+<Tip>
+**Frontend Integration**: Call this endpoint immediately after creating patient logs to ensure fields update in real-time. The response tells you how many auto-update fields were triggered for processing.
+</Tip>
+
 ## Field Values Endpoints
 
 ### Get Field Values for Patient
@@ -1464,16 +1581,39 @@ Configure what the AI should do when it cannot confidently extract the requested
 
 ### Auto-Update Behavior
 
-When `auto_update: true` is configured, fields automatically process when new patient logs are added to the system. This happens in the background without additional API calls.
+Fields with `auto_update: true` can be triggered to process automatically when new patient logs are added. This requires calling the auto-update endpoint after log creation for real-time processing.
 
 **How it works:**
 1. New patient log is created in the system
-2. NarraFields detects the new log
+2. Frontend calls `/api/v1/custom-fields/auto-update` endpoint
 3. Fields with `auto_update: true` automatically queue for processing
 4. AI extracts values from the new log content
 5. Results follow the same approval workflow if `requires_approval: true`
 
-**Processing time:** Typically completes within 5-10 seconds of log creation.
+**Processing time:** Typically completes within 5-10 seconds of triggering auto-update.
+
+**Frontend Integration Pattern:**
+```javascript
+// Recommended workflow
+async function createPatientLog(logData) {
+  // 1. Create the log
+  const logResult = await fetch('/api/v1/logs', {
+    method: 'POST',
+    body: JSON.stringify(logData)
+  });
+  
+  // 2. Trigger auto-update fields
+  if (logResult.ok) {
+    await fetch('/api/v1/custom-fields/auto-update', {
+      method: 'POST',
+      body: JSON.stringify({
+        workspace_id: logData.workspace_id,
+        patient_id: logData.patient_id
+      })
+    });
+  }
+}
+```
 
 ### Processing Triggers
 
